@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "data.c"
 
-#define M 2
+#define M 9
 
 struct {
 	int start,end;

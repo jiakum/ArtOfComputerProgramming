@@ -16,10 +16,9 @@ int main(int argc,char *argv[])
 		for(i=h-1; i<n; i+=h) {
 			int r = data[i];
 			for(j=i-h; j>=0; j-=h) {
-				if(data[j] <= r) {
-					data[j+h] = r;
+				if(data[j] <= r)
 					break;
-				} else {
+				else {
 					data[j+h] = data[j];
 				}
 			}
