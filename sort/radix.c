@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "data.c"
 
 #define M 2
 
@@ -23,40 +24,40 @@ static int inline PULL(int *l,int *r) {
 	return 0; // failed
 }
 
-static int data[] = { 10, 20, 30, 40, 20, 30, 9, 44, 99, 100};
-
 int main()
 {
-	int i,j,k,r,l,n,tmp,b;
+	int i,j,r,l,n,tmp,b;
 
 	n = sizeof(data)/sizeof(data[0]);
 	stack = malloc(sizeof(data[0]) * 8 * sizeof(*stack));
-	l = 0; r = n - 1; b = 1 << 8;
+	l = 0; r = n - 1; b = 1 << 20;  // Attention!Change value b if neccesary
 	 i = j = 0;
 
 	while(1) {
+		if(l == r) {
+			l = r +1;
+			if(!PULL(&r,&b))
+				break;
+		}
 		if(i >= j)
-			i = l; j = r;
-		while(1) {
-			if(i > j)
-				break;;
+			i = l, j = r;
+
+		while(i <= j) {
 			if(data[i] & b)
 				break;
 			i++;
 		}
-		while(1) {
-			if(j < i)
-				break;
+		while(j >= i) {
 			if(!(data[j] & b))
 				break;
 			j--;
 		}
 
-		if(i < j) {
+		if(i < j) { 
 			tmp = data[j];
 			data[j] = data[i];
 			data[i] = tmp;
-			continue;
+			continue; /* Attention! In next loop,the value of i and j will not change*/
 		}
 
 		if(b >>= 1) {

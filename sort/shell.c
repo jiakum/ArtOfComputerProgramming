@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "data.c"
 
-static int data[] = { 10, 20, 30, 40, 20, 30, 9, 44, 99, 100};
 static const int T = 1;
 static const int H[] = { 1, 3};
 
@@ -16,7 +16,7 @@ int main(int argc,char *argv[])
 		for(i=h-1; i<n; i+=h) {
 			int r = data[i];
 			for(j=i-h; j>=0; j-=h) {
-				if(data[j] >= r) {
+				if(data[j] <= r) {
 					data[j+h] = r;
 					break;
 				} else {
@@ -29,7 +29,6 @@ int main(int argc,char *argv[])
 
 	for(i=0; i<n; i++)
 		printf("    %d\n",data[i]);
-	printf("    %d\n",n);
 
 	return 0;
 }

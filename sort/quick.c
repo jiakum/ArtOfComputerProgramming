@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "data.c"
 
 #define M 2
 
@@ -24,8 +25,6 @@ static int inline PULL(int *l,int *r) {
 	}
 	return 0;
 }
-
-static int data[] = { 10, 20, 30, 40, 20, 30, 9, 44, 99, 100};
 
 int main()
 {
