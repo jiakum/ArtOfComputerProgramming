@@ -40,14 +40,8 @@ int main()
 
 		k = data[l]; j=r+1; i=l;
 		while(1) {
-			while(--j > l) {
-				if(data[j] <= k)
-					break;
-			}
-			while(++i < j) {
-				if(data[i] >= k)
-					break;
-			}
+			while((++i < r) && (data[i]<k));
+			while((--j > l) && (data[j]>k));
 
 			if(i < j){
 				tmp = data[j];
@@ -64,13 +58,13 @@ int main()
 
 		if(r - j > M) { 
 			if(j - l > M) {
-				PUSH(l,j-1);
+				PUSH(j+1,r);
 				r = j - 1;
 			} else 
 				l = j+1;
 			continue;
 		} else if(j - l > M) {
-			PUSH(j+1, r);
+			PUSH(l, j-1);
 			l = j+1;
 			continue;
 		} else if(!PULL(&l,&r))
@@ -85,9 +79,10 @@ int main()
 			if(data[i] <= k)
 				break;
 			data[i+1] = data[i];
-		}	
-		data[i+1] = k;	
+		}
+		data[i+1] = k;
 	}
+
 
 	for(i=0; i<n; i++)
 		printf("    %d\n",data[i]);
