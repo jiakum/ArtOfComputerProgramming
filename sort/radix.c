@@ -6,7 +6,8 @@
 #define M 2
 
 struct {
-	int start,end;
+	int start;
+	int32_t end;
 } *stack;
 static int ptr = 0;
 #define PUSH(l,r) 	do { \
@@ -14,7 +15,7 @@ static int ptr = 0;
 						stack[ptr].end = r;\
 						ptr++;\
 					}while(0);
-static int inline PULL(int *l,int *r) {
+static int inline PULL(int *l,uint32_t *r) {
 	if(ptr) {
 		ptr--;
 		*l = stack[ptr].start;
@@ -26,12 +27,13 @@ static int inline PULL(int *l,int *r) {
 
 int main()
 {
-	int i,j,r,l,n,tmp,b;
+	int i,j,r,l,n,tmp;
+	uint32_t b;
 
 	n = sizeof(data)/sizeof(data[0]);
-	stack = malloc(sizeof(data[0]) * 8 * sizeof(*stack));
-	l = 0; r = n - 1; b = 1 << 20;  // Attention!Change value b if neccesary
-	 i = j = 0;
+	stack = malloc(sizeof(data[0]) * sizeof(*stack));
+	l = 0; r = n - 1; b = 1 << 31;  // Attention!Change value b if neccesary
+	i = j = 0;
 
 	while(1) {
 		if(l == r) {
@@ -77,7 +79,7 @@ int main()
 	}
 
 	for(i=0; i<n; i++)
-		printf("    %d\n",data[i]);
+		printf("    %u\n",data[i]);
 
 	return 0;
 }
