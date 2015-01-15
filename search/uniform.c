@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "data.c"
+#include "queued_data.c"
 
 static int delta[36] = {0};
 int main()
