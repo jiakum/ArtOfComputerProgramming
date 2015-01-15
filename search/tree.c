@@ -98,49 +98,59 @@ static int inline PULL(void **p) {
 	return 0;
 }
 
-int main()
+static struct tree *top;
+static struct tree* insert_and_search(int k)
 {
-	int i,n,k,key;
-	struct tree *top,*p,*tmp;
-
-	top = alloc_tree();
-	stack = malloc(n * sizeof(*stack));
-	top->key = 0;
-
-	n = sizeof(data)/sizeof(data[0]);
-	for(i=0; i<n; i++) {
-		k = data[i];
-		p = top;
-		while(1) {
-			key = p->key;
-			if(k < key) {
-				if(!p->left) {
-					tmp = alloc_tree();
-					tmp->key = k;
-					p->left = tmp;
-					break;
-				} else {
-					p = p->left;
-					continue;
-				}
-			} else if(k > key) {
-				if(!p->right) {
-					tmp = alloc_tree();
-					tmp->key = k;
-					p->right = tmp;
-					break;
-				} else {
-					p = p->right;
-					continue;
-				}
-			} else {
-				printf("  k:%d found\n",k);
+	int key;
+	struct tree *p,*target = NULL;
+	
+	p = top;
+	while(1) {
+		key = p->key;
+		if(k < key) {
+			if(!p->left) {
+				target = alloc_tree();
+				target->key = k;
+				p->left = target;
 				break;
+			} else {
+				p = p->left;
+				continue;
 			}
+		} else if(k > key) {
+			if(!p->right) {
+				target = alloc_tree();
+				target->key = k;
+				p->right = target;
+				break;
+			} else {
+				p = p->right;
+				continue;
+			}
+		} else {
+			target = p;
+			printf("  k:%d found\n",k);
+			break;
 		}
 	}
 
-	p = top;
+	return target;
+}
+
+int main()
+{
+	int i,n;
+	struct tree *p;
+
+	top = alloc_tree();
+	top->key = 0;
+	stack = malloc(n * sizeof(*stack));
+
+	n = sizeof(data)/sizeof(data[0]);
+	for(i=0; i<n; i++)
+		insert_and_search(data[i]);
+
+	p = top;i = 0;
 	while(1) {
 		if(p) {
 			PUSH(p);
@@ -149,7 +159,7 @@ int main()
 		} else {
 			if(!PULL((void **)&p))
 				break;
-			printf("     %d\n",p->key);
+			printf("     %d,%d\n",p->key,i++ > n);
 			p = p->right;
 		}
 	}
