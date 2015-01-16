@@ -137,6 +137,25 @@ static struct tree* insert_and_search(int k)
 	return target;
 }
 
+static void delete_one(struct tree *p)
+{
+	struct tree *f,*r;
+
+	if(!p->right) {
+		if(p->left) {
+			f = p->left;
+			memcpy(p, f, sizeof(*p));
+		} else {
+		}
+	} else if(!p->left) {
+		f = p->right;
+		memcpy(p, f, sizeof(*p));
+	} else {
+		r = p->right;
+	}
+	free_tree(p);
+}
+
 int main()
 {
 	int i,n;
@@ -144,9 +163,9 @@ int main()
 
 	top = alloc_tree();
 	top->key = 0;
+	n = sizeof(data)/sizeof(data[0]);
 	stack = malloc(n * sizeof(*stack));
 
-	n = sizeof(data)/sizeof(data[0]);
 	for(i=0; i<n; i++)
 		insert_and_search(data[i]);
 
@@ -159,7 +178,7 @@ int main()
 		} else {
 			if(!PULL((void **)&p))
 				break;
-			printf("     %d,%d\n",p->key,i++ > n);
+			printf("     %d\n",p->key);
 			p = p->right;
 		}
 	}
