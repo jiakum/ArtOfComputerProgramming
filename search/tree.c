@@ -129,7 +129,6 @@ static struct tree* insert_and_search(int k)
 			}
 		} else {
 			target = p;
-			printf("  k:%d found\n",k);
 			break;
 		}
 	}
@@ -139,21 +138,70 @@ static struct tree* insert_and_search(int k)
 
 static void delete_one(struct tree *p)
 {
-	struct tree *f,*r;
+	int key,k;
+	struct tree *f,*r,*s;
 
 	if(!p->right) {
 		if(p->left) {
 			f = p->left;
-			memcpy(p, f, sizeof(*p));
 		} else {
+			k = p->key;
+			p = top; r = NULL;
+			while(1) {
+				key = p->key;
+				if(k < key) {
+					if(!p->left) {
+						break;
+					} else {
+						s = p;
+						p = p->left;
+						continue;
+					}
+				} else if(k > key) {
+					if(!p->right) {
+						break;
+					} else {
+						s = p;
+						p = p->right;
+						continue;
+					}
+				} else {
+					if(p == s->left) {
+						s->left = NULL;
+						f = p;
+					} else if(p == s->right){
+						s->right = NULL;
+						f = p;
+					} else {
+						printf("fatal error! No tree is is equal to %p\n",p);
+						return;
+					}
+					break;
+				}
+			}
 		}
 	} else if(!p->left) {
 		f = p->right;
-		memcpy(p, f, sizeof(*p));
 	} else {
 		r = p->right;
+		s = r->left;
+		if(s) {
+			while(s->left) {
+				r = s;
+				s = r->left;
+			}
+			r->left = s->right;
+			s->left = p->left;
+			s->right = p->right;
+			f = s;
+		} else {
+			r->left = p->left;
+			f = r;
+		}
 	}
-	free_tree(p);
+
+	memcpy(p, f, sizeof(*p));
+	free_tree(f);
 }
 
 int main()
@@ -168,7 +216,7 @@ int main()
 
 	for(i=0; i<n; i++)
 		insert_and_search(data[i]);
-
+	delete_one(insert_and_search(2147441223));
 	p = top;i = 0;
 	while(1) {
 		if(p) {
