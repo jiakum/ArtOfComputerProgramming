@@ -81,14 +81,67 @@ static void free_alltrees()
 	}
 }
 
-static struct tree *table[256]
+#define MAX (256)
+static struct tree *table[MAX];
+
+static inline unsigned int h(int val) 
+{
+	unsigned int ret;
+
+	ret = val;
+	ret %= MAX;
+	return ret;
+}
+
+static struct tree* insert(int val, int *inserted)
+{
+	unsigned int i;
+	struct tree *p,*s = NULL;
+
+	i = h(val);
+	p = table[i];
+	while(p) {
+		if(p->data == val) {
+			if(inserted)
+				*inserted = 0;
+			return p;
+		}
+		s = p;
+		p = p->next;
+	}
+
+	p = alloc_tree();
+	p->data = val;
+	if(s)
+		s->next = p;
+	if(!table[i])
+		table[i] = p;
+	if(inserted)
+		*inserted = 1;
+
+	return p;
+}
+
 int main()
 {
-	int i,n;
+	int i,n,j;
 	struct tree *p;
 
 	n = sizeof(data)/sizeof(data[0]);
-
+	for(i=0; i<n; i++)
+		insert(data[i], 0);
+	insert(0, &i);
+	if(!i)
+		printf("found 0\n");
+	for(i=0; i<MAX; i++) {
+		j = 0;
+		p = table[i];
+		while(p) {
+			j++;
+			p = p->next;
+		}
+		printf(" table[%d]:  %d\n",i,j);
+	}
 	free_alltrees();
 
 	return 0;
