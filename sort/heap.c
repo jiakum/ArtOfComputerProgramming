@@ -33,7 +33,7 @@ int main()
 		}
 		if((j == r) && (data[j] > k)) {
 			data[i] = data[j];
-			i = j; j <<= 1;
+			i = j;
 		}
 		data[i] = k;
 	}
