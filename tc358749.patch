@@ -1,0 +1,1694 @@
+diff --git a/arch/arm/configs/atm7059_defconfig b/arch/arm/configs/atm7059_defconfig
+index 4c708d0..39c57de 100755
+--- a/arch/arm/configs/atm7059_defconfig
++++ b/arch/arm/configs/atm7059_defconfig
+@@ -310,6 +310,7 @@ CONFIG_I2C_OWL_BUS1=y
+ # CONFIG_I2C_OWL_BUS3 is not set
+ CONFIG_PINCTRL_OWL=y
+ CONFIG_ACTIONS_SOC_CAMERA=y
++CONFIG_TC358749=y
+ # CONFIG_FB_ACTIONS is not set
+ # CONFIG_BACKLIGHT_ACTIONS is not set
+ CONFIG_CPUFREQ_ACTIONS=y
+@@ -2098,7 +2099,7 @@ CONFIG_MEDIA_SUBDRV_AUTOSELECT=y
+ # CONFIG_SOC_CAMERA_OV9740 is not set
+ # CONFIG_SOC_CAMERA_RJ54N1 is not set
+ # CONFIG_SOC_CAMERA_TW9910 is not set
+-# CONFIG_ACTIONS_CAMERA is not set
++CONFIG_ACTIONS_CAMERA=y
+ 
+ #
+ # Sensors used on Actions driver
+@@ -2106,7 +2107,8 @@ CONFIG_MEDIA_SUBDRV_AUTOSELECT=y
+ # CONFIG_GC2035 is not set
+ # CONFIG_GC0308 is not set
+ # CONFIG_GL5203_CAMERA is not set
+-# CONFIG_GL5206_CAMERA is not set
++CONFIG_GL5206_CAMERA=y
++CONFIG_TC358749=y
+ 
+ #
+ # Tools to develop new frontends
+diff --git a/drivers/media/i2c/camera/Kconfig b/drivers/media/i2c/camera/Kconfig
+index 3ddeef43..0dc3399 100755
+--- a/drivers/media/i2c/camera/Kconfig
++++ b/drivers/media/i2c/camera/Kconfig
+@@ -6,3 +6,4 @@
+ source "drivers/media/i2c/camera/gc2035/Kconfig"
+ source "drivers/media/i2c/camera/gc0308/Kconfig"
+ source "drivers/media/i2c/camera/asoc_camera/Kconfig"
++source "drivers/media/i2c/camera/tc358749/Kconfig"
+diff --git a/drivers/media/i2c/camera/Makefile b/drivers/media/i2c/camera/Makefile
+index 21e5485..ffec36b 100755
+--- a/drivers/media/i2c/camera/Makefile
++++ b/drivers/media/i2c/camera/Makefile
+@@ -2,4 +2,5 @@
+ 
+ obj-y				+= asoc_camera/
+ obj-y         			+= gc2035/
+-obj-y				+= gc0308/
+\ No newline at end of file
++obj-y				+= gc0308/
++obj-y				+= tc358749/
+diff --git a/drivers/media/i2c/camera/module_comm/module_comm.c b/drivers/media/i2c/camera/module_comm/module_comm.c
+index d1e4cda..ac866eb 100755
+--- a/drivers/media/i2c/camera/module_comm/module_comm.c
++++ b/drivers/media/i2c/camera/module_comm/module_comm.c
+@@ -26,9 +26,6 @@
+ #include <linux/device.h>
+ #include <mach/isp-owl.h>
+ 
+-static bool init_regs_writed   = false;
+-
+-
+ static struct camera_module_priv *to_camera_priv(const struct i2c_client *client)
+ {
+     return container_of(i2c_get_clientdata(client), struct camera_module_priv, subdev);
+@@ -851,9 +848,11 @@ static struct i2c_board_info asoc_i2c_camera = {
+     I2C_BOARD_INFO(CAMERA_MODULE_NAME, MODULE_I2C_REG_ADDRESS),
+ };
+ 
++#if 0
+ static struct module_info camera_module_info = {
+     .flags            = SENSOR_FLAG_8BIT | SENSOR_FLAG_DVP | SENSOR_FLAG_CHANNEL2,
+ };
++#endif
+ 
+ static const unsigned short camera_module_addrs[] = {
+     MODULE_I2C_REG_ADDRESS,
+diff --git a/drivers/media/i2c/camera/module_comm/module_comm.h b/drivers/media/i2c/camera/module_comm/module_comm.h
+index 9578a32..5d0aeb3 100755
+--- a/drivers/media/i2c/camera/module_comm/module_comm.h
++++ b/drivers/media/i2c/camera/module_comm/module_comm.h
+@@ -11,9 +11,11 @@
+  */
+ 
+ #ifndef __MODULE_COMM_H__
+-#define __MODULE_COMM_H__
+-
+-
++#define __MODULE_COMM_H__
++
++#include <uapi/linux/v4l2-mediabus.h>
++#include <media/v4l2-subdev.h>
++#include <media/v4l2-ctrls.h>
+ /* for flags */
+ #define MODULE_FLAG_VFLIP	(1 << 0) /* Vertical flip image */
+ #define MODULE_FLAG_HFLIP	(1 << 1) /* Horizontal flip image */
+@@ -79,9 +81,10 @@
+ #endif
+ 
+ 
+-struct regval_list {
++struct regval_list {
++	unsigned short data_width;
+ 	unsigned short reg_num;
+-	unsigned short value;
++	unsigned int value;
+ };
+ 
+ 
+@@ -141,6 +144,7 @@ struct camera_module_priv {
+  * YVYU8_2X8_LE == YVYU with LE packing
+  * YVYU8_2X8_BE == VYUY with LE packing
+  */
++#if 0
+ static const struct module_color_format module_cfmts[] = {
+ 	{
+         .code = V4L2_MBUS_FMT_YUYV8_2X8,
+@@ -158,14 +162,15 @@ static const struct module_color_format module_cfmts[] = {
+         .code = V4L2_MBUS_FMT_VYUY8_2X8,
+         .colorspace = V4L2_COLORSPACE_JPEG,
+     },
+-};
++};
++#endif
+ 
+ 
+ static int detect_work(void);
+ static int detect_init(void);
+ static void detect_deinit(void);
+-static int camera_i2c_read(struct i2c_adapter *i2c_adap, unsigned int reg, unsigned int *dest);
+-static int camera_i2c_write(struct i2c_adapter *i2c_adap, unsigned int reg, unsigned int src);
++static int camera_i2c_read(struct i2c_adapter *i2c_adap,unsigned int data_width, unsigned int reg, unsigned int *dest);
++static int camera_i2c_write(struct i2c_adapter *i2c_adap,unsigned int data_width, unsigned int reg, unsigned int src);
+ static int camera_write_array(struct i2c_adapter *i2c_adap, const struct regval_list *vals);
+ 
+ static struct camera_module_priv *to_camera_priv(const struct i2c_client *client);
+diff --git a/drivers/media/i2c/camera/tc358749/Kconfig b/drivers/media/i2c/camera/tc358749/Kconfig
+new file mode 100755
+index 0000000..a71d1e1
+--- /dev/null
++++ b/drivers/media/i2c/camera/tc358749/Kconfig
+@@ -0,0 +1,13 @@
++#
++# Actions CPU si or isp driver and the hdmi-in sensors of Actions support 
++#
++# 
++
++config TC358749
++	tristate "TC358749 hdmi-in sensor driver"
++	depends on VIDEO_V4L2 && I2C
++	help
++	  Support for TC358749 camera
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called TC358749.
+diff --git a/drivers/media/i2c/camera/tc358749/Makefile b/drivers/media/i2c/camera/tc358749/Makefile
+new file mode 100755
+index 0000000..d9513a9
+--- /dev/null
++++ b/drivers/media/i2c/camera/tc358749/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_TC358749)	+= tc358749.o
+diff --git a/drivers/media/i2c/camera/tc358749/module_diff.h b/drivers/media/i2c/camera/tc358749/module_diff.h
+new file mode 100755
+index 0000000..25c843f
+--- /dev/null
++++ b/drivers/media/i2c/camera/tc358749/module_diff.h
+@@ -0,0 +1,1168 @@
++/*
++ * module different macro
++ *
++ * Copyright (C) 2008 Renesas Solutions Corp.
++ * Kuninori Morimoto <morimoto.kuninori@renesas.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#ifndef __MODULE_DIFF_H__
++#define __MODULE_DIFF_H__
++
++#include "./../module_comm/module_comm.h"
++#include <mach/isp-owl.h>
++
++#define CAMERA_MODULE_NAME		"tc358749"
++#define CAMERA_MODULE_PID		0x4701
++#define CAMERA_MODULE_I2C_ADAPTER 4
++
++#define MODULE_I2C_REAL_ADDRESS		0x0F
++#define MODULE_I2C_REG_ADDRESS		0x0F
++#define I2C_REGS_WIDTH				2
++
++#define PIDH				0x0000	/* Product ID Number H byte */
++
++#define DEFAULT_VSYNC_ACTIVE_LEVEL		V4L2_MBUS_VSYNC_ACTIVE_HIGH
++#define DEFAULT_HSYNC_ACTIVE_LEVEL		V4L2_MBUS_HSYNC_ACTIVE_HIGH
++#define DEFAULT_PCLK_SAMPLE_EDGE		V4L2_MBUS_PCLK_SAMPLE_RISING
++#define DEFAULT_POWER_LINE_FREQUENCY	V4L2_CID_POWER_LINE_FREQUENCY_50HZ
++
++#define MODULE_DEFAULT_WIDTH	WIDTH_1080P
++#define MODULE_DEFAULT_HEIGHT	HEIGHT_1080P
++#define MODULE_MAX_WIDTH		WIDTH_1080P
++#define MODULE_MAX_HEIGHT		HEIGHT_1080P
++
++#define AHEAD_LINE_NUM			15	/*10 lines = 50 cycles */
++#define DROP_NUM_CAPTURE		0
++#define DROP_NUM_PREVIEW		0
++
++/*Every sensor must set this value*/
++#define USE_AS_FRONT 0
++#define USE_AS_REAR 1
++#define HDMI_INPUT 1
++
++struct module_info camera_module_info = {
++	.flags = SENSOR_FLAG_CHANNEL1
++	    | SENSOR_FLAG_MIPI | SENSOR_FLAG_YUV | SENSOR_FLAG_10BIT,
++};
++
++static unsigned int frame_rate_1080p[] = { 60, };
++static unsigned int frame_rate_720p[] = { 60, };
++
++/*
++ * initial setting
++ */
++static const struct regval_list module_init_regs[] = {
++	// Software Reset
++    {2, 0x0004, 0x0004}, // ConfCtl
++    {2, 0x0002, 0x7F80}, // SysCtl
++    {2, 0x0002, 0x0000}, // SysCtl
++	// PLL Setting
++    {2, 0x0020, 0x3057}, // PLLCtl0
++    //{2, 0x0022, 0x0203}, // PLLCtl1		for 1080p
++	////{2, 0x0022, 0x0603}, // PLLCtl1		for 720p
++    //{2, 0x0022, 0x0213}, // PLLCtl1		for 1080p
++	////{2, 0x0022, 0x0613}, // PLLCtl1		for 720p
++	// FIFO Delay Setting
++    {2, 0x0006, 0x003C}, // FIFO Ctl
++	// Misc Setting
++    {2, 0x0060, 0x0001}, // DSITX_MISC
++    {2, 0x7080, 0x0000}, // DB_Ctl
++	// Interrupt Control
++    {2, 0x0014, 0x0000}, // IntStatus
++    {2, 0x0016, 0x05FF}, // IntMask
++	// CSI Lane Enable
++	{4, 0x0140, 0x00000000}, // CLW_CNTRL
++    {4, 0x0144, 0x00000000}, // D0W_CNTRL
++    {4, 0x0148, 0x00000000}, // D1W_CNTRL
++    {4, 0x014C, 0x00000000}, // D2W_CNTRL
++    {4, 0x0150, 0x00000000}, // D3W_CNTRL
++	// CSI Transition Timing
++    {4, 0x0210, 0x00000FA0}, // LINEINITCNT
++    {4, 0x0214, 0x00000004}, // LPTXTIMECNT
++    {4, 0x0218, 0x00001503}, // TCLK_HEADERCNT
++    {4, 0x021C, 0x00000001}, // TCLK_TRAILCNT
++    {4, 0x0220, 0x00000103}, // THS_HEADERCNT
++    {4, 0x0224, 0x00003A98}, // TWAKEUP
++    {4, 0x0228, 0x00000008}, // TCLK_POSTCNT
++    {4, 0x022C, 0x00000002}, // THS_TRAILCNT
++    {4, 0x0230, 0x00000005}, // HSTXVREGCNT
++    {4, 0x0234, 0x0000001F}, // HSTXVREGEN
++    {4, 0x0238, 0x00000001}, // TXOPTIONACNTRL
++    {4, 0x0204, 0x00000001}, // STARTCNTRL
++    {4, 0x0518, 0x00000001}, // CSI_START
++    {4, 0x0500, 0xA3008086}, // CSI_CONFW
++	// HDMI Interrupt Mask
++	{1, 0x8502, 0x01}, // SYS_INT
++	{1, 0x8512, 0xFE}, // SYS_INTM
++	{1, 0x8514, 0x00}, // PACKET_INTM
++	{1, 0x8515, 0x00}, // AUDIO_IMNTM
++	{1, 0x8516, 0x00}, // ABUF_INTM
++	// HDMI Audio REFCLK
++	{1, 0x8531, 0x01}, // PHY_CTL0
++	{1, 0x8540, 0x8C}, // SYS_FREQ0
++	{1, 0x8541, 0x0A}, // SYS_FREQ1
++	{1, 0x8630, 0xB0}, // LOCKDET_REF0
++	{1, 0x8631, 0x1E}, // LOCKDET_REF1
++	{1, 0x8632, 0x04}, // LOCKDET_REF2
++	{1, 0x8670, 0x01}, // NCO_F0_MOD
++	// HDMI PHY
++	{1, 0x8532, 0x80}, // PHY CTL1
++	{1, 0x8536, 0x40}, // PHY_BIAS
++	{1, 0x853F, 0x0A}, // PHY_CSQ
++	// HDMI SYSTEM
++	{1, 0x8543, 0x32}, // DDC_CTL
++	{1, 0x8544, 0x10}, // HPD_CTL
++	{1, 0x8545, 0x31}, // ANA_CTL
++	{1, 0x8546, 0x2D}, // AVM_CTL
++	// EDID
++	{1, 0x85C7, 0x01}, // EDID_MODE
++	{1, 0x85CA, 0x00}, // EDID_LEN1
++	{1, 0x85CB, 0x01}, // EDID_LEN2
++	// EDID Data
++	{1, 0x8C00, 0x00}, // EDID_RAM
++	{1, 0x8C01, 0xFF}, // EDID_RAM
++	{1, 0x8C02, 0xFF}, // EDID_RAM
++	{1, 0x8C03, 0xFF}, // EDID_RAM
++	{1, 0x8C04, 0xFF}, // EDID_RAM
++	{1, 0x8C05, 0xFF}, // EDID_RAM
++	{1, 0x8C06, 0xFF}, // EDID_RAM
++	{1, 0x8C07, 0x00}, // EDID_RAM
++	{1, 0x8C08, 0x52}, // EDID_RAM
++	{1, 0x8C09, 0x62}, // EDID_RAM
++	{1, 0x8C0A, 0x88}, // EDID_RAM
++	{1, 0x8C0B, 0x88}, // EDID_RAM
++	{1, 0x8C0C, 0x00}, // EDID_RAM
++	{1, 0x8C0D, 0x88}, // EDID_RAM
++	{1, 0x8C0E, 0x88}, // EDID_RAM
++	{1, 0x8C0F, 0x88}, // EDID_RAM
++	{1, 0x8C10, 0x1C}, // EDID_RAM
++	{1, 0x8C11, 0x15}, // EDID_RAM
++	{1, 0x8C12, 0x01}, // EDID_RAM
++	{1, 0x8C13, 0x03}, // EDID_RAM
++	{1, 0x8C14, 0x80}, // EDID_RAM
++	{1, 0x8C15, 0x00}, // EDID_RAM
++	{1, 0x8C16, 0x00}, // EDID_RAM
++	{1, 0x8C17, 0x78}, // EDID_RAM
++	{1, 0x8C18, 0x0A}, // EDID_RAM
++	{1, 0x8C19, 0x0D}, // EDID_RAM
++	{1, 0x8C1A, 0xC9}, // EDID_RAM
++	{1, 0x8C1B, 0xA0}, // EDID_RAM
++	{1, 0x8C1C, 0x57}, // EDID_RAM
++	{1, 0x8C1D, 0x47}, // EDID_RAM
++	{1, 0x8C1E, 0x98}, // EDID_RAM
++	{1, 0x8C1F, 0x27}, // EDID_RAM
++	{1, 0x8C20, 0x12}, // EDID_RAM
++	{1, 0x8C21, 0x48}, // EDID_RAM
++	{1, 0x8C22, 0x4C}, // EDID_RAM
++	{1, 0x8C23, 0x00}, // EDID_RAM
++	{1, 0x8C24, 0x00}, // EDID_RAM
++	{1, 0x8C25, 0x00}, // EDID_RAM
++	{1, 0x8C26, 0x01}, // EDID_RAM
++	{1, 0x8C27, 0x01}, // EDID_RAM
++	{1, 0x8C28, 0x01}, // EDID_RAM
++	{1, 0x8C29, 0x01}, // EDID_RAM
++	{1, 0x8C2A, 0x01}, // EDID_RAM
++	{1, 0x8C2B, 0x01}, // EDID_RAM
++	{1, 0x8C2C, 0x01}, // EDID_RAM
++	{1, 0x8C2D, 0x01}, // EDID_RAM
++	{1, 0x8C2E, 0x01}, // EDID_RAM
++	{1, 0x8C2F, 0x01}, // EDID_RAM
++	{1, 0x8C30, 0x01}, // EDID_RAM
++	{1, 0x8C31, 0x01}, // EDID_RAM
++	{1, 0x8C32, 0x01}, // EDID_RAM
++	{1, 0x8C33, 0x01}, // EDID_RAM
++	{1, 0x8C34, 0x01}, // EDID_RAM
++	{1, 0x8C35, 0x01}, // EDID_RAM
++	{1, 0x8C36, 0x02}, // EDID_RAM
++	{1, 0x8C37, 0x3A}, // EDID_RAM
++	{1, 0x8C38, 0x80}, // EDID_RAM
++	{1, 0x8C39, 0x18}, // EDID_RAM
++	{1, 0x8C3A, 0x71}, // EDID_RAM
++	{1, 0x8C3B, 0x38}, // EDID_RAM
++	{1, 0x8C3C, 0x2D}, // EDID_RAM
++	{1, 0x8C3D, 0x40}, // EDID_RAM
++	{1, 0x8C3E, 0x58}, // EDID_RAM
++	{1, 0x8C3F, 0x2C}, // EDID_RAM
++	{1, 0x8C40, 0x45}, // EDID_RAM
++	{1, 0x8C41, 0x00}, // EDID_RAM
++	{1, 0x8C42, 0xC4}, // EDID_RAM
++	{1, 0x8C43, 0x8E}, // EDID_RAM
++	{1, 0x8C44, 0x21}, // EDID_RAM
++	{1, 0x8C45, 0x00}, // EDID_RAM
++	{1, 0x8C46, 0x00}, // EDID_RAM
++	{1, 0x8C47, 0x1E}, // EDID_RAM
++	{1, 0x8C48, 0x01}, // EDID_RAM
++	{1, 0x8C49, 0x1D}, // EDID_RAM
++	{1, 0x8C4A, 0x00}, // EDID_RAM
++	{1, 0x8C4B, 0x72}, // EDID_RAM
++	{1, 0x8C4C, 0x51}, // EDID_RAM
++	{1, 0x8C4D, 0xD0}, // EDID_RAM
++	{1, 0x8C4E, 0x1E}, // EDID_RAM
++	{1, 0x8C4F, 0x20}, // EDID_RAM
++	{1, 0x8C50, 0x6E}, // EDID_RAM
++	{1, 0x8C51, 0x28}, // EDID_RAM
++	{1, 0x8C52, 0x55}, // EDID_RAM
++	{1, 0x8C53, 0x00}, // EDID_RAM
++	{1, 0x8C54, 0xC4}, // EDID_RAM
++	{1, 0x8C55, 0x8E}, // EDID_RAM
++	{1, 0x8C56, 0x21}, // EDID_RAM
++	{1, 0x8C57, 0x00}, // EDID_RAM
++	{1, 0x8C58, 0x00}, // EDID_RAM
++	{1, 0x8C59, 0x1E}, // EDID_RAM
++	{1, 0x8C5A, 0x00}, // EDID_RAM
++	{1, 0x8C5B, 0x00}, // EDID_RAM
++	{1, 0x8C5C, 0x00}, // EDID_RAM
++	{1, 0x8C5D, 0xFC}, // EDID_RAM
++	{1, 0x8C5E, 0x00}, // EDID_RAM
++	{1, 0x8C5F, 0x54}, // EDID_RAM
++	{1, 0x8C60, 0x6F}, // EDID_RAM
++	{1, 0x8C61, 0x73}, // EDID_RAM
++	{1, 0x8C62, 0x68}, // EDID_RAM
++	{1, 0x8C63, 0x69}, // EDID_RAM
++	{1, 0x8C64, 0x62}, // EDID_RAM
++	{1, 0x8C65, 0x61}, // EDID_RAM
++	{1, 0x8C66, 0x2D}, // EDID_RAM
++	{1, 0x8C67, 0x48}, // EDID_RAM
++	{1, 0x8C68, 0x32}, // EDID_RAM
++	{1, 0x8C69, 0x43}, // EDID_RAM
++	{1, 0x8C6A, 0x0A}, // EDID_RAM
++	{1, 0x8C6B, 0x20}, // EDID_RAM
++	{1, 0x8C6C, 0x00}, // EDID_RAM
++	{1, 0x8C6D, 0x00}, // EDID_RAM
++	{1, 0x8C6E, 0x00}, // EDID_RAM
++	{1, 0x8C6F, 0xFD}, // EDID_RAM
++	{1, 0x8C70, 0x00}, // EDID_RAM
++	{1, 0x8C71, 0x17}, // EDID_RAM
++	{1, 0x8C72, 0x3D}, // EDID_RAM
++	{1, 0x8C73, 0x0F}, // EDID_RAM
++	{1, 0x8C74, 0x8C}, // EDID_RAM
++	{1, 0x8C75, 0x17}, // EDID_RAM
++	{1, 0x8C76, 0x00}, // EDID_RAM
++	{1, 0x8C77, 0x0A}, // EDID_RAM
++	{1, 0x8C78, 0x20}, // EDID_RAM
++	{1, 0x8C79, 0x20}, // EDID_RAM
++	{1, 0x8C7A, 0x20}, // EDID_RAM
++	{1, 0x8C7B, 0x20}, // EDID_RAM
++	{1, 0x8C7C, 0x20}, // EDID_RAM
++	{1, 0x8C7D, 0x20}, // EDID_RAM
++	{1, 0x8C7E, 0x01}, // EDID_RAM
++	{1, 0x8C7F, 0x93}, // EDID_RAM
++	{1, 0x8C80, 0x02}, // EDID_RAM
++	{1, 0x8C81, 0x03}, // EDID_RAM
++	{1, 0x8C82, 0x17}, // EDID_RAM
++	{1, 0x8C83, 0x74}, // EDID_RAM
++	{1, 0x8C84, 0x47}, // EDID_RAM
++	{1, 0x8C85, 0x10}, // EDID_RAM
++	{1, 0x8C86, 0x04}, // EDID_RAM
++	{1, 0x8C87, 0x44}, // EDID_RAM
++	{1, 0x8C88, 0x1B}, // EDID_RAM
++	{1, 0x8C89, 0x02}, // EDID_RAM
++	{1, 0x8C8A, 0x01}, // EDID_RAM
++	{1, 0x8C8B, 0x01}, // EDID_RAM
++	{1, 0x8C8C, 0x23}, // EDID_RAM
++	{1, 0x8C8D, 0x09}, // EDID_RAM
++	{1, 0x8C8E, 0x07}, // EDID_RAM
++	{1, 0x8C8F, 0x01}, // EDID_RAM
++	{1, 0x8C90, 0x66}, // EDID_RAM
++	{1, 0x8C91, 0x03}, // EDID_RAM
++	{1, 0x8C92, 0x0C}, // EDID_RAM
++	{1, 0x8C93, 0x00}, // EDID_RAM
++	{1, 0x8C94, 0x30}, // EDID_RAM
++	{1, 0x8C95, 0x00}, // EDID_RAM
++	{1, 0x8C96, 0x80}, // EDID_RAM
++	{1, 0x8C97, 0x8C}, // EDID_RAM
++	{1, 0x8C98, 0x0A}, // EDID_RAM
++	{1, 0x8C99, 0xD0}, // EDID_RAM
++	{1, 0x8C9A, 0x28}, // EDID_RAM
++	{1, 0x8C9B, 0x3C}, // EDID_RAM
++	{1, 0x8C9C, 0x80}, // EDID_RAM
++	{1, 0x8C9D, 0xA0}, // EDID_RAM
++	{1, 0x8C9E, 0x70}, // EDID_RAM
++	{1, 0x8C9F, 0xB0}, // EDID_RAM
++	{1, 0x8CA0, 0x23}, // EDID_RAM
++	{1, 0x8CA1, 0x40}, // EDID_RAM
++	{1, 0x8CA2, 0x30}, // EDID_RAM
++	{1, 0x8CA3, 0x20}, // EDID_RAM
++	{1, 0x8CA4, 0x36}, // EDID_RAM
++	{1, 0x8CA5, 0x00}, // EDID_RAM
++	{1, 0x8CA6, 0x80}, // EDID_RAM
++	{1, 0x8CA7, 0xB0}, // EDID_RAM
++	{1, 0x8CA8, 0x74}, // EDID_RAM
++	{1, 0x8CA9, 0x00}, // EDID_RAM
++	{1, 0x8CAA, 0x00}, // EDID_RAM
++	{1, 0x8CAB, 0x1A}, // EDID_RAM
++	{1, 0x8CAC, 0xBC}, // EDID_RAM
++	{1, 0x8CAD, 0x1B}, // EDID_RAM
++	{1, 0x8CAE, 0x00}, // EDID_RAM
++	{1, 0x8CAF, 0xA0}, // EDID_RAM
++	{1, 0x8CB0, 0x50}, // EDID_RAM
++	{1, 0x8CB1, 0x20}, // EDID_RAM
++	{1, 0x8CB2, 0x17}, // EDID_RAM
++	{1, 0x8CB3, 0x30}, // EDID_RAM
++	{1, 0x8CB4, 0x30}, // EDID_RAM
++	{1, 0x8CB5, 0x20}, // EDID_RAM
++	{1, 0x8CB6, 0x36}, // EDID_RAM
++	{1, 0x8CB7, 0x00}, // EDID_RAM
++	{1, 0x8CB8, 0x00}, // EDID_RAM
++	{1, 0x8CB9, 0x20}, // EDID_RAM
++	{1, 0x8CBA, 0x53}, // EDID_RAM
++	{1, 0x8CBB, 0x00}, // EDID_RAM
++	{1, 0x8CBC, 0x00}, // EDID_RAM
++	{1, 0x8CBD, 0x1A}, // EDID_RAM
++	{1, 0x8CBE, 0x8C}, // EDID_RAM
++	{1, 0x8CBF, 0x0A}, // EDID_RAM
++	{1, 0x8CC0, 0xD0}, // EDID_RAM
++	{1, 0x8CC1, 0x8A}, // EDID_RAM
++	{1, 0x8CC2, 0x20}, // EDID_RAM
++	{1, 0x8CC3, 0xE0}, // EDID_RAM
++	{1, 0x8CC4, 0x2D}, // EDID_RAM
++	{1, 0x8CC5, 0x10}, // EDID_RAM
++	{1, 0x8CC6, 0x10}, // EDID_RAM
++	{1, 0x8CC7, 0x3E}, // EDID_RAM
++	{1, 0x8CC8, 0x96}, // EDID_RAM
++	{1, 0x8CC9, 0x00}, // EDID_RAM
++	{1, 0x8CCA, 0x13}, // EDID_RAM
++	{1, 0x8CCB, 0x8E}, // EDID_RAM
++	{1, 0x8CCC, 0x21}, // EDID_RAM
++	{1, 0x8CCD, 0x00}, // EDID_RAM
++	{1, 0x8CCE, 0x00}, // EDID_RAM
++	{1, 0x8CCF, 0x1E}, // EDID_RAM
++	{1, 0x8CD0, 0xD8}, // EDID_RAM
++	{1, 0x8CD1, 0x09}, // EDID_RAM
++	{1, 0x8CD2, 0x80}, // EDID_RAM
++	{1, 0x8CD3, 0xA0}, // EDID_RAM
++	{1, 0x8CD4, 0x20}, // EDID_RAM
++	{1, 0x8CD5, 0xE0}, // EDID_RAM
++	{1, 0x8CD6, 0x2D}, // EDID_RAM
++	{1, 0x8CD7, 0x10}, // EDID_RAM
++	{1, 0x8CD8, 0x10}, // EDID_RAM
++	{1, 0x8CD9, 0x60}, // EDID_RAM
++	{1, 0x8CDA, 0xA2}, // EDID_RAM
++	{1, 0x8CDB, 0x00}, // EDID_RAM
++	{1, 0x8CDC, 0xC4}, // EDID_RAM
++	{1, 0x8CDD, 0x8E}, // EDID_RAM
++	{1, 0x8CDE, 0x21}, // EDID_RAM
++	{1, 0x8CDF, 0x00}, // EDID_RAM
++	{1, 0x8CE0, 0x00}, // EDID_RAM
++	{1, 0x8CE1, 0x1E}, // EDID_RAM
++	{1, 0x8CE2, 0x00}, // EDID_RAM
++	{1, 0x8CE3, 0x00}, // EDID_RAM
++	{1, 0x8CE4, 0x00}, // EDID_RAM
++	{1, 0x8CE5, 0x00}, // EDID_RAM
++	{1, 0x8CE6, 0x00}, // EDID_RAM
++	{1, 0x8CE7, 0x00}, // EDID_RAM
++	{1, 0x8CE8, 0x00}, // EDID_RAM
++	{1, 0x8CE9, 0x00}, // EDID_RAM
++	{1, 0x8CEA, 0x00}, // EDID_RAM
++	{1, 0x8CEB, 0x00}, // EDID_RAM
++	{1, 0x8CEC, 0x00}, // EDID_RAM
++	{1, 0x8CED, 0x00}, // EDID_RAM
++	{1, 0x8CEE, 0x00}, // EDID_RAM
++	{1, 0x8CEF, 0x00}, // EDID_RAM
++	{1, 0x8CF0, 0x00}, // EDID_RAM
++	{1, 0x8CF1, 0x00}, // EDID_RAM
++	{1, 0x8CF2, 0x00}, // EDID_RAM
++	{1, 0x8CF3, 0x00}, // EDID_RAM
++	{1, 0x8CF4, 0x00}, // EDID_RAM
++	{1, 0x8CF5, 0x00}, // EDID_RAM
++	{1, 0x8CF6, 0x00}, // EDID_RAM
++	{1, 0x8CF7, 0x00}, // EDID_RAM
++	{1, 0x8CF8, 0x00}, // EDID_RAM
++	{1, 0x8CF9, 0x00}, // EDID_RAM
++	{1, 0x8CFA, 0x00}, // EDID_RAM
++	{1, 0x8CFB, 0x00}, // EDID_RAM
++	{1, 0x8CFC, 0x00}, // EDID_RAM
++	{1, 0x8CFD, 0x00}, // EDID_RAM
++	{1, 0x8CFE, 0x00}, // EDID_RAM
++	{1, 0x8CFF, 0x95}, // EDID_RAM
++	// HDCP Setting
++	// Video Setting
++	{1, 0x8573, 0x81}, // VOUT_SET2
++	// HDMI Audio Setting
++	{1, 0x8600, 0x00}, // AUD_Auto_Mute
++	{1, 0x8602, 0xF3}, // Auto_CMD0
++	{1, 0x8603, 0x02}, // Auto_CMD1
++	{1, 0x8604, 0x0C}, // Auto_CMD2
++	{1, 0x8606, 0x05}, // BUFINIT_START
++	{1, 0x8607, 0x00}, // FS_MUTE
++	{1, 0x8620, 0x22}, // FS_IMODE
++	{1, 0x8640, 0x01}, // ACR_MODE
++	{1, 0x8641, 0x65}, // ACR_MDF0
++	{1, 0x8642, 0x07}, // ACR_MDF1
++	{1, 0x8652, 0x02}, // SDO_MODE1
++	{1, 0x8665, 0x10}, // DIV_MODE
++	// Info Frame Extraction
++	{1, 0x8709, 0xFF}, // PK_INT_MODE
++	{1, 0x870B, 0x2C}, // NO_PKT_LIMIT
++	{1, 0x870C, 0x53}, // NO_PKT_CLR
++	{1, 0x870D, 0x01}, // ERR_PK_LIMIT
++	{1, 0x870E, 0x30}, // NO_PKT_LIMIT2
++	{1, 0x9007, 0x10}, // NO_GDB_LIMIT
++	{1, 0x854A, 0x01}, // INIT_END
++    {2, 0x0004, 0x0CD7}, // ConfCtl	
++	ENDMARKER,
++};
++
++/* 1280*720: 720P */
++static const struct regval_list module_720p_regs[] = {
++	// Software Reset
++    {2, 0x0004, 0x0004}, // ConfCtl
++    {2, 0x0002, 0x7F80}, // SysCtl
++    {2, 0x0002, 0x0000}, // SysCtl
++	// PLL Setting
++    {2, 0x0020, 0x3057}, // PLLCtl0
++	{2, 0x0022, 0x0603}, // PLLCtl1		for 720p
++	{2, 0x0022, 0x0613}, // PLLCtl1		for 720p
++	// FIFO Delay Setting
++    {2, 0x0006, 0x003C}, // FIFO Ctl
++	// Misc Setting
++    {2, 0x0060, 0x0001}, // DSITX_MISC
++    {2, 0x7080, 0x0000}, // DB_Ctl
++	// Interrupt Control
++    {2, 0x0014, 0x0000}, // IntStatus
++    {2, 0x0016, 0x05FF}, // IntMask
++	// CSI Lane Enable
++	{4, 0x0140, 0x00000000}, // CLW_CNTRL
++    {4, 0x0144, 0x00000000}, // D0W_CNTRL
++    {4, 0x0148, 0x00000000}, // D1W_CNTRL
++    {4, 0x014C, 0x00000000}, // D2W_CNTRL
++    {4, 0x0150, 0x00000000}, // D3W_CNTRL
++	// CSI Transition Timing
++    {4, 0x0210, 0x00000FA0}, // LINEINITCNT
++    {4, 0x0214, 0x00000004}, // LPTXTIMECNT
++    {4, 0x0218, 0x00001503}, // TCLK_HEADERCNT
++    {4, 0x021C, 0x00000001}, // TCLK_TRAILCNT
++    {4, 0x0220, 0x00000103}, // THS_HEADERCNT
++    {4, 0x0224, 0x00003A98}, // TWAKEUP
++    {4, 0x0228, 0x00000008}, // TCLK_POSTCNT
++    {4, 0x022C, 0x00000002}, // THS_TRAILCNT
++    {4, 0x0230, 0x00000005}, // HSTXVREGCNT
++    {4, 0x0234, 0x0000001F}, // HSTXVREGEN
++    {4, 0x0238, 0x00000001}, // TXOPTIONACNTRL
++    {4, 0x0204, 0x00000001}, // STARTCNTRL
++    {4, 0x0518, 0x00000001}, // CSI_START
++    {4, 0x0500, 0xA3008086}, // CSI_CONFW
++	// HDMI Interrupt Mask
++	{1, 0x8502, 0x01}, // SYS_INT
++	{1, 0x8512, 0xFE}, // SYS_INTM
++	{1, 0x8514, 0x00}, // PACKET_INTM
++	{1, 0x8515, 0x00}, // AUDIO_IMNTM
++	{1, 0x8516, 0x00}, // ABUF_INTM
++	// HDMI Audio REFCLK
++	{1, 0x8531, 0x01}, // PHY_CTL0
++	{1, 0x8540, 0x8C}, // SYS_FREQ0
++	{1, 0x8541, 0x0A}, // SYS_FREQ1
++	{1, 0x8630, 0xB0}, // LOCKDET_REF0
++	{1, 0x8631, 0x1E}, // LOCKDET_REF1
++	{1, 0x8632, 0x04}, // LOCKDET_REF2
++	{1, 0x8670, 0x01}, // NCO_F0_MOD
++	// HDMI PHY
++	{1, 0x8532, 0x80}, // PHY CTL1
++	{1, 0x8536, 0x40}, // PHY_BIAS
++	{1, 0x853F, 0x0A}, // PHY_CSQ
++	// HDMI SYSTEM
++	{1, 0x8543, 0x32}, // DDC_CTL
++	{1, 0x8544, 0x10}, // HPD_CTL
++	{1, 0x8545, 0x31}, // ANA_CTL
++	{1, 0x8546, 0x2D}, // AVM_CTL
++	// EDID
++	{1, 0x85C7, 0x01}, // EDID_MODE
++	{1, 0x85CA, 0x00}, // EDID_LEN1
++	{1, 0x85CB, 0x01}, // EDID_LEN2
++	// EDID Data
++	{1, 0x8C00, 0x00}, // EDID_RAM
++	{1, 0x8C01, 0xFF}, // EDID_RAM
++	{1, 0x8C02, 0xFF}, // EDID_RAM
++	{1, 0x8C03, 0xFF}, // EDID_RAM
++	{1, 0x8C04, 0xFF}, // EDID_RAM
++	{1, 0x8C05, 0xFF}, // EDID_RAM
++	{1, 0x8C06, 0xFF}, // EDID_RAM
++	{1, 0x8C07, 0x00}, // EDID_RAM
++	{1, 0x8C08, 0x52}, // EDID_RAM
++	{1, 0x8C09, 0x62}, // EDID_RAM
++	{1, 0x8C0A, 0x88}, // EDID_RAM
++	{1, 0x8C0B, 0x88}, // EDID_RAM
++	{1, 0x8C0C, 0x00}, // EDID_RAM
++	{1, 0x8C0D, 0x88}, // EDID_RAM
++	{1, 0x8C0E, 0x88}, // EDID_RAM
++	{1, 0x8C0F, 0x88}, // EDID_RAM
++	{1, 0x8C10, 0x1C}, // EDID_RAM
++	{1, 0x8C11, 0x15}, // EDID_RAM
++	{1, 0x8C12, 0x01}, // EDID_RAM
++	{1, 0x8C13, 0x03}, // EDID_RAM
++	{1, 0x8C14, 0x80}, // EDID_RAM
++	{1, 0x8C15, 0x00}, // EDID_RAM
++	{1, 0x8C16, 0x00}, // EDID_RAM
++	{1, 0x8C17, 0x78}, // EDID_RAM
++	{1, 0x8C18, 0x0A}, // EDID_RAM
++	{1, 0x8C19, 0x0D}, // EDID_RAM
++	{1, 0x8C1A, 0xC9}, // EDID_RAM
++	{1, 0x8C1B, 0xA0}, // EDID_RAM
++	{1, 0x8C1C, 0x57}, // EDID_RAM
++	{1, 0x8C1D, 0x47}, // EDID_RAM
++	{1, 0x8C1E, 0x98}, // EDID_RAM
++	{1, 0x8C1F, 0x27}, // EDID_RAM
++	{1, 0x8C20, 0x12}, // EDID_RAM
++	{1, 0x8C21, 0x48}, // EDID_RAM
++	{1, 0x8C22, 0x4C}, // EDID_RAM
++	{1, 0x8C23, 0x00}, // EDID_RAM
++	{1, 0x8C24, 0x00}, // EDID_RAM
++	{1, 0x8C25, 0x00}, // EDID_RAM
++	{1, 0x8C26, 0x01}, // EDID_RAM
++	{1, 0x8C27, 0x01}, // EDID_RAM
++	{1, 0x8C28, 0x01}, // EDID_RAM
++	{1, 0x8C29, 0x01}, // EDID_RAM
++	{1, 0x8C2A, 0x01}, // EDID_RAM
++	{1, 0x8C2B, 0x01}, // EDID_RAM
++	{1, 0x8C2C, 0x01}, // EDID_RAM
++	{1, 0x8C2D, 0x01}, // EDID_RAM
++	{1, 0x8C2E, 0x01}, // EDID_RAM
++	{1, 0x8C2F, 0x01}, // EDID_RAM
++	{1, 0x8C30, 0x01}, // EDID_RAM
++	{1, 0x8C31, 0x01}, // EDID_RAM
++	{1, 0x8C32, 0x01}, // EDID_RAM
++	{1, 0x8C33, 0x01}, // EDID_RAM
++	{1, 0x8C34, 0x01}, // EDID_RAM
++	{1, 0x8C35, 0x01}, // EDID_RAM
++	{1, 0x8C36, 0x02}, // EDID_RAM
++	{1, 0x8C37, 0x3A}, // EDID_RAM
++	{1, 0x8C38, 0x80}, // EDID_RAM
++	{1, 0x8C39, 0x18}, // EDID_RAM
++	{1, 0x8C3A, 0x71}, // EDID_RAM
++	{1, 0x8C3B, 0x38}, // EDID_RAM
++	{1, 0x8C3C, 0x2D}, // EDID_RAM
++	{1, 0x8C3D, 0x40}, // EDID_RAM
++	{1, 0x8C3E, 0x58}, // EDID_RAM
++	{1, 0x8C3F, 0x2C}, // EDID_RAM
++	{1, 0x8C40, 0x45}, // EDID_RAM
++	{1, 0x8C41, 0x00}, // EDID_RAM
++	{1, 0x8C42, 0xC4}, // EDID_RAM
++	{1, 0x8C43, 0x8E}, // EDID_RAM
++	{1, 0x8C44, 0x21}, // EDID_RAM
++	{1, 0x8C45, 0x00}, // EDID_RAM
++	{1, 0x8C46, 0x00}, // EDID_RAM
++	{1, 0x8C47, 0x1E}, // EDID_RAM
++	{1, 0x8C48, 0x01}, // EDID_RAM
++	{1, 0x8C49, 0x1D}, // EDID_RAM
++	{1, 0x8C4A, 0x00}, // EDID_RAM
++	{1, 0x8C4B, 0x72}, // EDID_RAM
++	{1, 0x8C4C, 0x51}, // EDID_RAM
++	{1, 0x8C4D, 0xD0}, // EDID_RAM
++	{1, 0x8C4E, 0x1E}, // EDID_RAM
++	{1, 0x8C4F, 0x20}, // EDID_RAM
++	{1, 0x8C50, 0x6E}, // EDID_RAM
++	{1, 0x8C51, 0x28}, // EDID_RAM
++	{1, 0x8C52, 0x55}, // EDID_RAM
++	{1, 0x8C53, 0x00}, // EDID_RAM
++	{1, 0x8C54, 0xC4}, // EDID_RAM
++	{1, 0x8C55, 0x8E}, // EDID_RAM
++	{1, 0x8C56, 0x21}, // EDID_RAM
++	{1, 0x8C57, 0x00}, // EDID_RAM
++	{1, 0x8C58, 0x00}, // EDID_RAM
++	{1, 0x8C59, 0x1E}, // EDID_RAM
++	{1, 0x8C5A, 0x00}, // EDID_RAM
++	{1, 0x8C5B, 0x00}, // EDID_RAM
++	{1, 0x8C5C, 0x00}, // EDID_RAM
++	{1, 0x8C5D, 0xFC}, // EDID_RAM
++	{1, 0x8C5E, 0x00}, // EDID_RAM
++	{1, 0x8C5F, 0x54}, // EDID_RAM
++	{1, 0x8C60, 0x6F}, // EDID_RAM
++	{1, 0x8C61, 0x73}, // EDID_RAM
++	{1, 0x8C62, 0x68}, // EDID_RAM
++	{1, 0x8C63, 0x69}, // EDID_RAM
++	{1, 0x8C64, 0x62}, // EDID_RAM
++	{1, 0x8C65, 0x61}, // EDID_RAM
++	{1, 0x8C66, 0x2D}, // EDID_RAM
++	{1, 0x8C67, 0x48}, // EDID_RAM
++	{1, 0x8C68, 0x32}, // EDID_RAM
++	{1, 0x8C69, 0x43}, // EDID_RAM
++	{1, 0x8C6A, 0x0A}, // EDID_RAM
++	{1, 0x8C6B, 0x20}, // EDID_RAM
++	{1, 0x8C6C, 0x00}, // EDID_RAM
++	{1, 0x8C6D, 0x00}, // EDID_RAM
++	{1, 0x8C6E, 0x00}, // EDID_RAM
++	{1, 0x8C6F, 0xFD}, // EDID_RAM
++	{1, 0x8C70, 0x00}, // EDID_RAM
++	{1, 0x8C71, 0x17}, // EDID_RAM
++	{1, 0x8C72, 0x3D}, // EDID_RAM
++	{1, 0x8C73, 0x0F}, // EDID_RAM
++	{1, 0x8C74, 0x8C}, // EDID_RAM
++	{1, 0x8C75, 0x17}, // EDID_RAM
++	{1, 0x8C76, 0x00}, // EDID_RAM
++	{1, 0x8C77, 0x0A}, // EDID_RAM
++	{1, 0x8C78, 0x20}, // EDID_RAM
++	{1, 0x8C79, 0x20}, // EDID_RAM
++	{1, 0x8C7A, 0x20}, // EDID_RAM
++	{1, 0x8C7B, 0x20}, // EDID_RAM
++	{1, 0x8C7C, 0x20}, // EDID_RAM
++	{1, 0x8C7D, 0x20}, // EDID_RAM
++	{1, 0x8C7E, 0x01}, // EDID_RAM
++	{1, 0x8C7F, 0x93}, // EDID_RAM
++	{1, 0x8C80, 0x02}, // EDID_RAM
++	{1, 0x8C81, 0x03}, // EDID_RAM
++	{1, 0x8C82, 0x17}, // EDID_RAM
++	{1, 0x8C83, 0x74}, // EDID_RAM
++	{1, 0x8C84, 0x47}, // EDID_RAM
++	{1, 0x8C85, 0x10}, // EDID_RAM
++	{1, 0x8C86, 0x04}, // EDID_RAM
++	{1, 0x8C87, 0x44}, // EDID_RAM
++	{1, 0x8C88, 0x1B}, // EDID_RAM
++	{1, 0x8C89, 0x02}, // EDID_RAM
++	{1, 0x8C8A, 0x01}, // EDID_RAM
++	{1, 0x8C8B, 0x01}, // EDID_RAM
++	{1, 0x8C8C, 0x23}, // EDID_RAM
++	{1, 0x8C8D, 0x09}, // EDID_RAM
++	{1, 0x8C8E, 0x07}, // EDID_RAM
++	{1, 0x8C8F, 0x01}, // EDID_RAM
++	{1, 0x8C90, 0x66}, // EDID_RAM
++	{1, 0x8C91, 0x03}, // EDID_RAM
++	{1, 0x8C92, 0x0C}, // EDID_RAM
++	{1, 0x8C93, 0x00}, // EDID_RAM
++	{1, 0x8C94, 0x30}, // EDID_RAM
++	{1, 0x8C95, 0x00}, // EDID_RAM
++	{1, 0x8C96, 0x80}, // EDID_RAM
++	{1, 0x8C97, 0x8C}, // EDID_RAM
++	{1, 0x8C98, 0x0A}, // EDID_RAM
++	{1, 0x8C99, 0xD0}, // EDID_RAM
++	{1, 0x8C9A, 0x28}, // EDID_RAM
++	{1, 0x8C9B, 0x3C}, // EDID_RAM
++	{1, 0x8C9C, 0x80}, // EDID_RAM
++	{1, 0x8C9D, 0xA0}, // EDID_RAM
++	{1, 0x8C9E, 0x70}, // EDID_RAM
++	{1, 0x8C9F, 0xB0}, // EDID_RAM
++	{1, 0x8CA0, 0x23}, // EDID_RAM
++	{1, 0x8CA1, 0x40}, // EDID_RAM
++	{1, 0x8CA2, 0x30}, // EDID_RAM
++	{1, 0x8CA3, 0x20}, // EDID_RAM
++	{1, 0x8CA4, 0x36}, // EDID_RAM
++	{1, 0x8CA5, 0x00}, // EDID_RAM
++	{1, 0x8CA6, 0x80}, // EDID_RAM
++	{1, 0x8CA7, 0xB0}, // EDID_RAM
++	{1, 0x8CA8, 0x74}, // EDID_RAM
++	{1, 0x8CA9, 0x00}, // EDID_RAM
++	{1, 0x8CAA, 0x00}, // EDID_RAM
++	{1, 0x8CAB, 0x1A}, // EDID_RAM
++	{1, 0x8CAC, 0xBC}, // EDID_RAM
++	{1, 0x8CAD, 0x1B}, // EDID_RAM
++	{1, 0x8CAE, 0x00}, // EDID_RAM
++	{1, 0x8CAF, 0xA0}, // EDID_RAM
++	{1, 0x8CB0, 0x50}, // EDID_RAM
++	{1, 0x8CB1, 0x20}, // EDID_RAM
++	{1, 0x8CB2, 0x17}, // EDID_RAM
++	{1, 0x8CB3, 0x30}, // EDID_RAM
++	{1, 0x8CB4, 0x30}, // EDID_RAM
++	{1, 0x8CB5, 0x20}, // EDID_RAM
++	{1, 0x8CB6, 0x36}, // EDID_RAM
++	{1, 0x8CB7, 0x00}, // EDID_RAM
++	{1, 0x8CB8, 0x00}, // EDID_RAM
++	{1, 0x8CB9, 0x20}, // EDID_RAM
++	{1, 0x8CBA, 0x53}, // EDID_RAM
++	{1, 0x8CBB, 0x00}, // EDID_RAM
++	{1, 0x8CBC, 0x00}, // EDID_RAM
++	{1, 0x8CBD, 0x1A}, // EDID_RAM
++	{1, 0x8CBE, 0x8C}, // EDID_RAM
++	{1, 0x8CBF, 0x0A}, // EDID_RAM
++	{1, 0x8CC0, 0xD0}, // EDID_RAM
++	{1, 0x8CC1, 0x8A}, // EDID_RAM
++	{1, 0x8CC2, 0x20}, // EDID_RAM
++	{1, 0x8CC3, 0xE0}, // EDID_RAM
++	{1, 0x8CC4, 0x2D}, // EDID_RAM
++	{1, 0x8CC5, 0x10}, // EDID_RAM
++	{1, 0x8CC6, 0x10}, // EDID_RAM
++	{1, 0x8CC7, 0x3E}, // EDID_RAM
++	{1, 0x8CC8, 0x96}, // EDID_RAM
++	{1, 0x8CC9, 0x00}, // EDID_RAM
++	{1, 0x8CCA, 0x13}, // EDID_RAM
++	{1, 0x8CCB, 0x8E}, // EDID_RAM
++	{1, 0x8CCC, 0x21}, // EDID_RAM
++	{1, 0x8CCD, 0x00}, // EDID_RAM
++	{1, 0x8CCE, 0x00}, // EDID_RAM
++	{1, 0x8CCF, 0x1E}, // EDID_RAM
++	{1, 0x8CD0, 0xD8}, // EDID_RAM
++	{1, 0x8CD1, 0x09}, // EDID_RAM
++	{1, 0x8CD2, 0x80}, // EDID_RAM
++	{1, 0x8CD3, 0xA0}, // EDID_RAM
++	{1, 0x8CD4, 0x20}, // EDID_RAM
++	{1, 0x8CD5, 0xE0}, // EDID_RAM
++	{1, 0x8CD6, 0x2D}, // EDID_RAM
++	{1, 0x8CD7, 0x10}, // EDID_RAM
++	{1, 0x8CD8, 0x10}, // EDID_RAM
++	{1, 0x8CD9, 0x60}, // EDID_RAM
++	{1, 0x8CDA, 0xA2}, // EDID_RAM
++	{1, 0x8CDB, 0x00}, // EDID_RAM
++	{1, 0x8CDC, 0xC4}, // EDID_RAM
++	{1, 0x8CDD, 0x8E}, // EDID_RAM
++	{1, 0x8CDE, 0x21}, // EDID_RAM
++	{1, 0x8CDF, 0x00}, // EDID_RAM
++	{1, 0x8CE0, 0x00}, // EDID_RAM
++	{1, 0x8CE1, 0x1E}, // EDID_RAM
++	{1, 0x8CE2, 0x00}, // EDID_RAM
++	{1, 0x8CE3, 0x00}, // EDID_RAM
++	{1, 0x8CE4, 0x00}, // EDID_RAM
++	{1, 0x8CE5, 0x00}, // EDID_RAM
++	{1, 0x8CE6, 0x00}, // EDID_RAM
++	{1, 0x8CE7, 0x00}, // EDID_RAM
++	{1, 0x8CE8, 0x00}, // EDID_RAM
++	{1, 0x8CE9, 0x00}, // EDID_RAM
++	{1, 0x8CEA, 0x00}, // EDID_RAM
++	{1, 0x8CEB, 0x00}, // EDID_RAM
++	{1, 0x8CEC, 0x00}, // EDID_RAM
++	{1, 0x8CED, 0x00}, // EDID_RAM
++	{1, 0x8CEE, 0x00}, // EDID_RAM
++	{1, 0x8CEF, 0x00}, // EDID_RAM
++	{1, 0x8CF0, 0x00}, // EDID_RAM
++	{1, 0x8CF1, 0x00}, // EDID_RAM
++	{1, 0x8CF2, 0x00}, // EDID_RAM
++	{1, 0x8CF3, 0x00}, // EDID_RAM
++	{1, 0x8CF4, 0x00}, // EDID_RAM
++	{1, 0x8CF5, 0x00}, // EDID_RAM
++	{1, 0x8CF6, 0x00}, // EDID_RAM
++	{1, 0x8CF7, 0x00}, // EDID_RAM
++	{1, 0x8CF8, 0x00}, // EDID_RAM
++	{1, 0x8CF9, 0x00}, // EDID_RAM
++	{1, 0x8CFA, 0x00}, // EDID_RAM
++	{1, 0x8CFB, 0x00}, // EDID_RAM
++	{1, 0x8CFC, 0x00}, // EDID_RAM
++	{1, 0x8CFD, 0x00}, // EDID_RAM
++	{1, 0x8CFE, 0x00}, // EDID_RAM
++	{1, 0x8CFF, 0x95}, // EDID_RAM
++	// HDCP Setting
++	// Video Setting
++	{1, 0x8573, 0x81}, // VOUT_SET2
++	// HDMI Audio Setting
++	{1, 0x8600, 0x00}, // AUD_Auto_Mute
++	{1, 0x8602, 0xF3}, // Auto_CMD0
++	{1, 0x8603, 0x02}, // Auto_CMD1
++	{1, 0x8604, 0x0C}, // Auto_CMD2
++	{1, 0x8606, 0x05}, // BUFINIT_START
++	{1, 0x8607, 0x00}, // FS_MUTE
++	{1, 0x8620, 0x22}, // FS_IMODE
++	{1, 0x8640, 0x01}, // ACR_MODE
++	{1, 0x8641, 0x65}, // ACR_MDF0
++	{1, 0x8642, 0x07}, // ACR_MDF1
++	{1, 0x8652, 0x02}, // SDO_MODE1
++	{1, 0x8665, 0x10}, // DIV_MODE
++	// Info Frame Extraction
++	{1, 0x8709, 0xFF}, // PK_INT_MODE
++	{1, 0x870B, 0x2C}, // NO_PKT_LIMIT
++	{1, 0x870C, 0x53}, // NO_PKT_CLR
++	{1, 0x870D, 0x01}, // ERR_PK_LIMIT
++	{1, 0x870E, 0x30}, // NO_PKT_LIMIT2
++	{1, 0x9007, 0x10}, // NO_GDB_LIMIT
++	{1, 0x854A, 0x01}, // INIT_END
++    {2, 0x0004, 0x0CD7}, // ConfCtl	/{1, 0xfe, 0x80},
++
++	ENDMARKER,
++};
++
++/* 1920*1080: 1080P*/
++static const struct regval_list module_1080p_regs[] = {
++	// Software Reset
++    {2, 0x0004, 0x0004}, // ConfCtl
++    {2, 0x0002, 0x7F80}, // SysCtl
++    {2, 0x0002, 0x0000}, // SysCtl
++	// PLL Setting
++    {2, 0x0020, 0x3057}, // PLLCtl0
++    {2, 0x0022, 0x0203}, // PLLCtl1		for 1080p
++    {2, 0x0022, 0x0213}, // PLLCtl1		for 1080p
++	// FIFO Delay Setting
++    {2, 0x0006, 0x003C}, // FIFO Ctl
++	// Misc Setting
++    {2, 0x0060, 0x0001}, // DSITX_MISC
++    {2, 0x7080, 0x0000}, // DB_Ctl
++	// Interrupt Control
++    {2, 0x0014, 0x0000}, // IntStatus
++    {2, 0x0016, 0x05FF}, // IntMask
++	// CSI Lane Enable
++	{4, 0x0140, 0x00000000}, // CLW_CNTRL
++    {4, 0x0144, 0x00000000}, // D0W_CNTRL
++    {4, 0x0148, 0x00000000}, // D1W_CNTRL
++    {4, 0x014C, 0x00000000}, // D2W_CNTRL
++    {4, 0x0150, 0x00000000}, // D3W_CNTRL
++	// CSI Transition Timing
++    {4, 0x0210, 0x00000FA0}, // LINEINITCNT
++    {4, 0x0214, 0x00000004}, // LPTXTIMECNT
++    {4, 0x0218, 0x00001503}, // TCLK_HEADERCNT
++    {4, 0x021C, 0x00000001}, // TCLK_TRAILCNT
++    {4, 0x0220, 0x00000103}, // THS_HEADERCNT
++    {4, 0x0224, 0x00003A98}, // TWAKEUP
++    {4, 0x0228, 0x00000008}, // TCLK_POSTCNT
++    {4, 0x022C, 0x00000002}, // THS_TRAILCNT
++    {4, 0x0230, 0x00000005}, // HSTXVREGCNT
++    {4, 0x0234, 0x0000001F}, // HSTXVREGEN
++    {4, 0x0238, 0x00000001}, // TXOPTIONACNTRL
++    {4, 0x0204, 0x00000001}, // STARTCNTRL
++    {4, 0x0518, 0x00000001}, // CSI_START
++    {4, 0x0500, 0xA3008086}, // CSI_CONFW
++	// HDMI Interrupt Mask
++	{1, 0x8502, 0x01}, // SYS_INT
++	{1, 0x8512, 0xFE}, // SYS_INTM
++	{1, 0x8514, 0x00}, // PACKET_INTM
++	{1, 0x8515, 0x00}, // AUDIO_IMNTM
++	{1, 0x8516, 0x00}, // ABUF_INTM
++	// HDMI Audio REFCLK
++	{1, 0x8531, 0x01}, // PHY_CTL0
++	{1, 0x8540, 0x8C}, // SYS_FREQ0
++	{1, 0x8541, 0x0A}, // SYS_FREQ1
++	{1, 0x8630, 0xB0}, // LOCKDET_REF0
++	{1, 0x8631, 0x1E}, // LOCKDET_REF1
++	{1, 0x8632, 0x04}, // LOCKDET_REF2
++	{1, 0x8670, 0x01}, // NCO_F0_MOD
++	// HDMI PHY
++	{1, 0x8532, 0x80}, // PHY CTL1
++	{1, 0x8536, 0x40}, // PHY_BIAS
++	{1, 0x853F, 0x0A}, // PHY_CSQ
++	// HDMI SYSTEM
++	{1, 0x8543, 0x32}, // DDC_CTL
++	{1, 0x8544, 0x10}, // HPD_CTL
++	{1, 0x8545, 0x31}, // ANA_CTL
++	{1, 0x8546, 0x2D}, // AVM_CTL
++	// EDID
++	{1, 0x85C7, 0x01}, // EDID_MODE
++	{1, 0x85CA, 0x00}, // EDID_LEN1
++	{1, 0x85CB, 0x01}, // EDID_LEN2
++	// EDID Data
++	{1, 0x8C00, 0x00}, // EDID_RAM
++	{1, 0x8C01, 0xFF}, // EDID_RAM
++	{1, 0x8C02, 0xFF}, // EDID_RAM
++	{1, 0x8C03, 0xFF}, // EDID_RAM
++	{1, 0x8C04, 0xFF}, // EDID_RAM
++	{1, 0x8C05, 0xFF}, // EDID_RAM
++	{1, 0x8C06, 0xFF}, // EDID_RAM
++	{1, 0x8C07, 0x00}, // EDID_RAM
++	{1, 0x8C08, 0x52}, // EDID_RAM
++	{1, 0x8C09, 0x62}, // EDID_RAM
++	{1, 0x8C0A, 0x88}, // EDID_RAM
++	{1, 0x8C0B, 0x88}, // EDID_RAM
++	{1, 0x8C0C, 0x00}, // EDID_RAM
++	{1, 0x8C0D, 0x88}, // EDID_RAM
++	{1, 0x8C0E, 0x88}, // EDID_RAM
++	{1, 0x8C0F, 0x88}, // EDID_RAM
++	{1, 0x8C10, 0x1C}, // EDID_RAM
++	{1, 0x8C11, 0x15}, // EDID_RAM
++	{1, 0x8C12, 0x01}, // EDID_RAM
++	{1, 0x8C13, 0x03}, // EDID_RAM
++	{1, 0x8C14, 0x80}, // EDID_RAM
++	{1, 0x8C15, 0x00}, // EDID_RAM
++	{1, 0x8C16, 0x00}, // EDID_RAM
++	{1, 0x8C17, 0x78}, // EDID_RAM
++	{1, 0x8C18, 0x0A}, // EDID_RAM
++	{1, 0x8C19, 0x0D}, // EDID_RAM
++	{1, 0x8C1A, 0xC9}, // EDID_RAM
++	{1, 0x8C1B, 0xA0}, // EDID_RAM
++	{1, 0x8C1C, 0x57}, // EDID_RAM
++	{1, 0x8C1D, 0x47}, // EDID_RAM
++	{1, 0x8C1E, 0x98}, // EDID_RAM
++	{1, 0x8C1F, 0x27}, // EDID_RAM
++	{1, 0x8C20, 0x12}, // EDID_RAM
++	{1, 0x8C21, 0x48}, // EDID_RAM
++	{1, 0x8C22, 0x4C}, // EDID_RAM
++	{1, 0x8C23, 0x00}, // EDID_RAM
++	{1, 0x8C24, 0x00}, // EDID_RAM
++	{1, 0x8C25, 0x00}, // EDID_RAM
++	{1, 0x8C26, 0x01}, // EDID_RAM
++	{1, 0x8C27, 0x01}, // EDID_RAM
++	{1, 0x8C28, 0x01}, // EDID_RAM
++	{1, 0x8C29, 0x01}, // EDID_RAM
++	{1, 0x8C2A, 0x01}, // EDID_RAM
++	{1, 0x8C2B, 0x01}, // EDID_RAM
++	{1, 0x8C2C, 0x01}, // EDID_RAM
++	{1, 0x8C2D, 0x01}, // EDID_RAM
++	{1, 0x8C2E, 0x01}, // EDID_RAM
++	{1, 0x8C2F, 0x01}, // EDID_RAM
++	{1, 0x8C30, 0x01}, // EDID_RAM
++	{1, 0x8C31, 0x01}, // EDID_RAM
++	{1, 0x8C32, 0x01}, // EDID_RAM
++	{1, 0x8C33, 0x01}, // EDID_RAM
++	{1, 0x8C34, 0x01}, // EDID_RAM
++	{1, 0x8C35, 0x01}, // EDID_RAM
++	{1, 0x8C36, 0x02}, // EDID_RAM
++	{1, 0x8C37, 0x3A}, // EDID_RAM
++	{1, 0x8C38, 0x80}, // EDID_RAM
++	{1, 0x8C39, 0x18}, // EDID_RAM
++	{1, 0x8C3A, 0x71}, // EDID_RAM
++	{1, 0x8C3B, 0x38}, // EDID_RAM
++	{1, 0x8C3C, 0x2D}, // EDID_RAM
++	{1, 0x8C3D, 0x40}, // EDID_RAM
++	{1, 0x8C3E, 0x58}, // EDID_RAM
++	{1, 0x8C3F, 0x2C}, // EDID_RAM
++	{1, 0x8C40, 0x45}, // EDID_RAM
++	{1, 0x8C41, 0x00}, // EDID_RAM
++	{1, 0x8C42, 0xC4}, // EDID_RAM
++	{1, 0x8C43, 0x8E}, // EDID_RAM
++	{1, 0x8C44, 0x21}, // EDID_RAM
++	{1, 0x8C45, 0x00}, // EDID_RAM
++	{1, 0x8C46, 0x00}, // EDID_RAM
++	{1, 0x8C47, 0x1E}, // EDID_RAM
++	{1, 0x8C48, 0x01}, // EDID_RAM
++	{1, 0x8C49, 0x1D}, // EDID_RAM
++	{1, 0x8C4A, 0x00}, // EDID_RAM
++	{1, 0x8C4B, 0x72}, // EDID_RAM
++	{1, 0x8C4C, 0x51}, // EDID_RAM
++	{1, 0x8C4D, 0xD0}, // EDID_RAM
++	{1, 0x8C4E, 0x1E}, // EDID_RAM
++	{1, 0x8C4F, 0x20}, // EDID_RAM
++	{1, 0x8C50, 0x6E}, // EDID_RAM
++	{1, 0x8C51, 0x28}, // EDID_RAM
++	{1, 0x8C52, 0x55}, // EDID_RAM
++	{1, 0x8C53, 0x00}, // EDID_RAM
++	{1, 0x8C54, 0xC4}, // EDID_RAM
++	{1, 0x8C55, 0x8E}, // EDID_RAM
++	{1, 0x8C56, 0x21}, // EDID_RAM
++	{1, 0x8C57, 0x00}, // EDID_RAM
++	{1, 0x8C58, 0x00}, // EDID_RAM
++	{1, 0x8C59, 0x1E}, // EDID_RAM
++	{1, 0x8C5A, 0x00}, // EDID_RAM
++	{1, 0x8C5B, 0x00}, // EDID_RAM
++	{1, 0x8C5C, 0x00}, // EDID_RAM
++	{1, 0x8C5D, 0xFC}, // EDID_RAM
++	{1, 0x8C5E, 0x00}, // EDID_RAM
++	{1, 0x8C5F, 0x54}, // EDID_RAM
++	{1, 0x8C60, 0x6F}, // EDID_RAM
++	{1, 0x8C61, 0x73}, // EDID_RAM
++	{1, 0x8C62, 0x68}, // EDID_RAM
++	{1, 0x8C63, 0x69}, // EDID_RAM
++	{1, 0x8C64, 0x62}, // EDID_RAM
++	{1, 0x8C65, 0x61}, // EDID_RAM
++	{1, 0x8C66, 0x2D}, // EDID_RAM
++	{1, 0x8C67, 0x48}, // EDID_RAM
++	{1, 0x8C68, 0x32}, // EDID_RAM
++	{1, 0x8C69, 0x43}, // EDID_RAM
++	{1, 0x8C6A, 0x0A}, // EDID_RAM
++	{1, 0x8C6B, 0x20}, // EDID_RAM
++	{1, 0x8C6C, 0x00}, // EDID_RAM
++	{1, 0x8C6D, 0x00}, // EDID_RAM
++	{1, 0x8C6E, 0x00}, // EDID_RAM
++	{1, 0x8C6F, 0xFD}, // EDID_RAM
++	{1, 0x8C70, 0x00}, // EDID_RAM
++	{1, 0x8C71, 0x17}, // EDID_RAM
++	{1, 0x8C72, 0x3D}, // EDID_RAM
++	{1, 0x8C73, 0x0F}, // EDID_RAM
++	{1, 0x8C74, 0x8C}, // EDID_RAM
++	{1, 0x8C75, 0x17}, // EDID_RAM
++	{1, 0x8C76, 0x00}, // EDID_RAM
++	{1, 0x8C77, 0x0A}, // EDID_RAM
++	{1, 0x8C78, 0x20}, // EDID_RAM
++	{1, 0x8C79, 0x20}, // EDID_RAM
++	{1, 0x8C7A, 0x20}, // EDID_RAM
++	{1, 0x8C7B, 0x20}, // EDID_RAM
++	{1, 0x8C7C, 0x20}, // EDID_RAM
++	{1, 0x8C7D, 0x20}, // EDID_RAM
++	{1, 0x8C7E, 0x01}, // EDID_RAM
++	{1, 0x8C7F, 0x93}, // EDID_RAM
++	{1, 0x8C80, 0x02}, // EDID_RAM
++	{1, 0x8C81, 0x03}, // EDID_RAM
++	{1, 0x8C82, 0x17}, // EDID_RAM
++	{1, 0x8C83, 0x74}, // EDID_RAM
++	{1, 0x8C84, 0x47}, // EDID_RAM
++	{1, 0x8C85, 0x10}, // EDID_RAM
++	{1, 0x8C86, 0x04}, // EDID_RAM
++	{1, 0x8C87, 0x44}, // EDID_RAM
++	{1, 0x8C88, 0x1B}, // EDID_RAM
++	{1, 0x8C89, 0x02}, // EDID_RAM
++	{1, 0x8C8A, 0x01}, // EDID_RAM
++	{1, 0x8C8B, 0x01}, // EDID_RAM
++	{1, 0x8C8C, 0x23}, // EDID_RAM
++	{1, 0x8C8D, 0x09}, // EDID_RAM
++	{1, 0x8C8E, 0x07}, // EDID_RAM
++	{1, 0x8C8F, 0x01}, // EDID_RAM
++	{1, 0x8C90, 0x66}, // EDID_RAM
++	{1, 0x8C91, 0x03}, // EDID_RAM
++	{1, 0x8C92, 0x0C}, // EDID_RAM
++	{1, 0x8C93, 0x00}, // EDID_RAM
++	{1, 0x8C94, 0x30}, // EDID_RAM
++	{1, 0x8C95, 0x00}, // EDID_RAM
++	{1, 0x8C96, 0x80}, // EDID_RAM
++	{1, 0x8C97, 0x8C}, // EDID_RAM
++	{1, 0x8C98, 0x0A}, // EDID_RAM
++	{1, 0x8C99, 0xD0}, // EDID_RAM
++	{1, 0x8C9A, 0x28}, // EDID_RAM
++	{1, 0x8C9B, 0x3C}, // EDID_RAM
++	{1, 0x8C9C, 0x80}, // EDID_RAM
++	{1, 0x8C9D, 0xA0}, // EDID_RAM
++	{1, 0x8C9E, 0x70}, // EDID_RAM
++	{1, 0x8C9F, 0xB0}, // EDID_RAM
++	{1, 0x8CA0, 0x23}, // EDID_RAM
++	{1, 0x8CA1, 0x40}, // EDID_RAM
++	{1, 0x8CA2, 0x30}, // EDID_RAM
++	{1, 0x8CA3, 0x20}, // EDID_RAM
++	{1, 0x8CA4, 0x36}, // EDID_RAM
++	{1, 0x8CA5, 0x00}, // EDID_RAM
++	{1, 0x8CA6, 0x80}, // EDID_RAM
++	{1, 0x8CA7, 0xB0}, // EDID_RAM
++	{1, 0x8CA8, 0x74}, // EDID_RAM
++	{1, 0x8CA9, 0x00}, // EDID_RAM
++	{1, 0x8CAA, 0x00}, // EDID_RAM
++	{1, 0x8CAB, 0x1A}, // EDID_RAM
++	{1, 0x8CAC, 0xBC}, // EDID_RAM
++	{1, 0x8CAD, 0x1B}, // EDID_RAM
++	{1, 0x8CAE, 0x00}, // EDID_RAM
++	{1, 0x8CAF, 0xA0}, // EDID_RAM
++	{1, 0x8CB0, 0x50}, // EDID_RAM
++	{1, 0x8CB1, 0x20}, // EDID_RAM
++	{1, 0x8CB2, 0x17}, // EDID_RAM
++	{1, 0x8CB3, 0x30}, // EDID_RAM
++	{1, 0x8CB4, 0x30}, // EDID_RAM
++	{1, 0x8CB5, 0x20}, // EDID_RAM
++	{1, 0x8CB6, 0x36}, // EDID_RAM
++	{1, 0x8CB7, 0x00}, // EDID_RAM
++	{1, 0x8CB8, 0x00}, // EDID_RAM
++	{1, 0x8CB9, 0x20}, // EDID_RAM
++	{1, 0x8CBA, 0x53}, // EDID_RAM
++	{1, 0x8CBB, 0x00}, // EDID_RAM
++	{1, 0x8CBC, 0x00}, // EDID_RAM
++	{1, 0x8CBD, 0x1A}, // EDID_RAM
++	{1, 0x8CBE, 0x8C}, // EDID_RAM
++	{1, 0x8CBF, 0x0A}, // EDID_RAM
++	{1, 0x8CC0, 0xD0}, // EDID_RAM
++	{1, 0x8CC1, 0x8A}, // EDID_RAM
++	{1, 0x8CC2, 0x20}, // EDID_RAM
++	{1, 0x8CC3, 0xE0}, // EDID_RAM
++	{1, 0x8CC4, 0x2D}, // EDID_RAM
++	{1, 0x8CC5, 0x10}, // EDID_RAM
++	{1, 0x8CC6, 0x10}, // EDID_RAM
++	{1, 0x8CC7, 0x3E}, // EDID_RAM
++	{1, 0x8CC8, 0x96}, // EDID_RAM
++	{1, 0x8CC9, 0x00}, // EDID_RAM
++	{1, 0x8CCA, 0x13}, // EDID_RAM
++	{1, 0x8CCB, 0x8E}, // EDID_RAM
++	{1, 0x8CCC, 0x21}, // EDID_RAM
++	{1, 0x8CCD, 0x00}, // EDID_RAM
++	{1, 0x8CCE, 0x00}, // EDID_RAM
++	{1, 0x8CCF, 0x1E}, // EDID_RAM
++	{1, 0x8CD0, 0xD8}, // EDID_RAM
++	{1, 0x8CD1, 0x09}, // EDID_RAM
++	{1, 0x8CD2, 0x80}, // EDID_RAM
++	{1, 0x8CD3, 0xA0}, // EDID_RAM
++	{1, 0x8CD4, 0x20}, // EDID_RAM
++	{1, 0x8CD5, 0xE0}, // EDID_RAM
++	{1, 0x8CD6, 0x2D}, // EDID_RAM
++	{1, 0x8CD7, 0x10}, // EDID_RAM
++	{1, 0x8CD8, 0x10}, // EDID_RAM
++	{1, 0x8CD9, 0x60}, // EDID_RAM
++	{1, 0x8CDA, 0xA2}, // EDID_RAM
++	{1, 0x8CDB, 0x00}, // EDID_RAM
++	{1, 0x8CDC, 0xC4}, // EDID_RAM
++	{1, 0x8CDD, 0x8E}, // EDID_RAM
++	{1, 0x8CDE, 0x21}, // EDID_RAM
++	{1, 0x8CDF, 0x00}, // EDID_RAM
++	{1, 0x8CE0, 0x00}, // EDID_RAM
++	{1, 0x8CE1, 0x1E}, // EDID_RAM
++	{1, 0x8CE2, 0x00}, // EDID_RAM
++	{1, 0x8CE3, 0x00}, // EDID_RAM
++	{1, 0x8CE4, 0x00}, // EDID_RAM
++	{1, 0x8CE5, 0x00}, // EDID_RAM
++	{1, 0x8CE6, 0x00}, // EDID_RAM
++	{1, 0x8CE7, 0x00}, // EDID_RAM
++	{1, 0x8CE8, 0x00}, // EDID_RAM
++	{1, 0x8CE9, 0x00}, // EDID_RAM
++	{1, 0x8CEA, 0x00}, // EDID_RAM
++	{1, 0x8CEB, 0x00}, // EDID_RAM
++	{1, 0x8CEC, 0x00}, // EDID_RAM
++	{1, 0x8CED, 0x00}, // EDID_RAM
++	{1, 0x8CEE, 0x00}, // EDID_RAM
++	{1, 0x8CEF, 0x00}, // EDID_RAM
++	{1, 0x8CF0, 0x00}, // EDID_RAM
++	{1, 0x8CF1, 0x00}, // EDID_RAM
++	{1, 0x8CF2, 0x00}, // EDID_RAM
++	{1, 0x8CF3, 0x00}, // EDID_RAM
++	{1, 0x8CF4, 0x00}, // EDID_RAM
++	{1, 0x8CF5, 0x00}, // EDID_RAM
++	{1, 0x8CF6, 0x00}, // EDID_RAM
++	{1, 0x8CF7, 0x00}, // EDID_RAM
++	{1, 0x8CF8, 0x00}, // EDID_RAM
++	{1, 0x8CF9, 0x00}, // EDID_RAM
++	{1, 0x8CFA, 0x00}, // EDID_RAM
++	{1, 0x8CFB, 0x00}, // EDID_RAM
++	{1, 0x8CFC, 0x00}, // EDID_RAM
++	{1, 0x8CFD, 0x00}, // EDID_RAM
++	{1, 0x8CFE, 0x00}, // EDID_RAM
++	{1, 0x8CFF, 0x95}, // EDID_RAM
++	// HDCP Setting
++	// Video Setting
++	{1, 0x8573, 0x81}, // VOUT_SET2
++	// HDMI Audio Setting
++	{1, 0x8600, 0x00}, // AUD_Auto_Mute
++	{1, 0x8602, 0xF3}, // Auto_CMD0
++	{1, 0x8603, 0x02}, // Auto_CMD1
++	{1, 0x8604, 0x0C}, // Auto_CMD2
++	{1, 0x8606, 0x05}, // BUFINIT_START
++	{1, 0x8607, 0x00}, // FS_MUTE
++	{1, 0x8620, 0x22}, // FS_IMODE
++	{1, 0x8640, 0x01}, // ACR_MODE
++	{1, 0x8641, 0x65}, // ACR_MDF0
++	{1, 0x8642, 0x07}, // ACR_MDF1
++	{1, 0x8652, 0x02}, // SDO_MODE1
++	{1, 0x8665, 0x10}, // DIV_MODE
++	// Info Frame Extraction
++	{1, 0x8709, 0xFF}, // PK_INT_MODE
++	{1, 0x870B, 0x2C}, // NO_PKT_LIMIT
++	{1, 0x870C, 0x53}, // NO_PKT_CLR
++	{1, 0x870D, 0x01}, // ERR_PK_LIMIT
++	{1, 0x870E, 0x30}, // NO_PKT_LIMIT2
++	{1, 0x9007, 0x10}, // NO_GDB_LIMIT
++	{1, 0x854A, 0x01}, // INIT_END
++    {2, 0x0004, 0x0CD7}, // ConfCtl	//{1, 0xfe, 0x80},
++	ENDMARKER,
++};
++
++/*
++ * window size list
++ */
++/* 1280X720 */
++static struct camera_module_win_size module_win_720p = {
++	.name = "720P",
++	.width = WIDTH_720P,
++	.height = HEIGHT_720P,
++	.win_regs = module_720p_regs,
++	.frame_rate_array = frame_rate_720p,
++};
++
++/* 1920X1080 */
++static struct camera_module_win_size module_win_1080p = {
++	.name = "1080P",
++	.width = WIDTH_1080P,
++	.height = HEIGHT_1080P,
++	.win_regs = module_1080p_regs,
++	.frame_rate_array = frame_rate_1080p,
++};
++
++struct camera_module_win_size *module_win_list[] = {
++	&module_win_1080p,
++	&module_win_720p,
++};
++
++/*
++ * supported color format list.
++ * see definition in
++ *     http://thread.gmane.org/gmane.linux.drivers.
++ *video-input-infrastructure/12830/focus=13394
++ * YUYV8_2X8_LE == YUYV with LE packing
++ * YUYV8_2X8_BE == UYVY with LE packing
++ * YVYU8_2X8_LE == YVYU with LE packing
++ * YVYU8_2X8_BE == VYUY with LE packing
++ */
++static struct module_color_format module_cfmts[] = {
++	{
++	 .code = V4L2_MBUS_FMT_YUYV8_2X8,
++	 .colorspace = V4L2_COLORSPACE_JPEG,
++	 },
++};
++
++static struct v4l2_ctl_cmd_info v4l2_ctl_array[] = {
++	{},
++};
++
++static struct v4l2_ctl_cmd_info_menu v4l2_ctl_array_menu[] = {
++	{
++	 .id = V4L2_CID_POWER_LINE_FREQUENCY,
++	 .max = V4L2_CID_POWER_LINE_FREQUENCY_AUTO,
++	 .mask = 0x0,
++	 .def = V4L2_CID_POWER_LINE_FREQUENCY_AUTO,},
++};
++
++#endif				/* __MODULE_DIFF_H__ */
+diff --git a/drivers/media/i2c/camera/tc358749/tc358749.c b/drivers/media/i2c/camera/tc358749/tc358749.c
+new file mode 100755
+index 0000000..bc3c3aa
+--- /dev/null
++++ b/drivers/media/i2c/camera/tc358749/tc358749.c
+@@ -0,0 +1,351 @@
++/*
++ * tc358749 Hdmi-in Driver
++ *
++ * Copyright (C) 2014 Actions Semiconductor Co.,LTD
++ * Yiguang <liuyiguang@actions-semi.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/module.h>
++#include <linux/delay.h>
++#include <media/v4l2-chip-ident.h>
++#include <linux/platform_device.h>
++#include "module_diff.h"
++#include "../module_comm/module_comm.c"
++#include "../module_comm/module_detect.c"
++
++#include <linux/init.h>
++#include <linux/kthread.h>
++
++#define GPIO_HIGH   1
++#define GPIO_LOW    0
++
++bool verified;
++static struct task_struct *tsk;
++
++static inline void free_thread(void)
++{
++    if (verified)
++    {
++        if (tsk != NULL) {
++            if (!IS_ERR(tsk)) {
++                int ret = kthread_stop(tsk);
++                pr_info("check_hdmi_thread is stop %d ==============\n", ret);
++            }
++        }
++    }   
++}
++
++static int check_hdmi(void *data)
++{
++    struct i2c_adapter *i2c_adap = data;
++	unsigned int hdmi_check_value[50] = {0};
++    
++    do {
++	    camera_i2c_read(i2c_adap, 1, 0x8520, &hdmi_check_value[0]); // SYS_STATUS
++	    camera_i2c_read(i2c_adap, 1, 0x8521, &hdmi_check_value[1]); // Video input status
++	    camera_i2c_read(i2c_adap, 1, 0x8522, &hdmi_check_value[2]); // Video input status1
++	    camera_i2c_read(i2c_adap, 1, 0x8523, &hdmi_check_value[3]); // audio status0
++	    camera_i2c_read(i2c_adap, 1, 0x8524, &hdmi_check_value[4]); // audio status1
++	    camera_i2c_read(i2c_adap, 1, 0x8525, &hdmi_check_value[5]); // Video input status2
++	    camera_i2c_read(i2c_adap, 1, 0x8526, &hdmi_check_value[6]); // clk status
++	    camera_i2c_read(i2c_adap, 1, 0x8527, &hdmi_check_value[7]); // phyerr status
++	    camera_i2c_read(i2c_adap, 1, 0x8528, &hdmi_check_value[8]); // VI status
++
++        // HDMI Input Video Timing Check (PCLK)
++	    camera_i2c_read(i2c_adap, 1, 0x852E, &hdmi_check_value[10]); // PX_FREQ0
++	    camera_i2c_read(i2c_adap, 1, 0x852F, &hdmi_check_value[11]); // PX_FREQ1
++	    
++        // HDMI Input Video Timing Check (Horizontal Related)
++	    camera_i2c_read(i2c_adap, 1, 0x858A, &hdmi_check_value[12]); // H_SIZE0
++	    camera_i2c_read(i2c_adap, 1, 0x858B, &hdmi_check_value[13]); // H_SIZE1
++	    camera_i2c_read(i2c_adap, 1, 0x8580, &hdmi_check_value[14]); // DE_POS_H0
++	    camera_i2c_read(i2c_adap, 1, 0x8581, &hdmi_check_value[15]); // DE_POS_H1
++	    camera_i2c_read(i2c_adap, 1, 0x8582, &hdmi_check_value[16]); // DE_WIDTH_H0
++	    camera_i2c_read(i2c_adap, 1, 0x8583, &hdmi_check_value[17]); // DE_WIDTH_H1
++	    
++        // HDMI Input Video Timing Check (Vertical Related)
++	    camera_i2c_read(i2c_adap, 1, 0x858C, &hdmi_check_value[18]); // V_SIZE0
++	    camera_i2c_read(i2c_adap, 1, 0x858D, &hdmi_check_value[19]); // V_SIZE1
++	    camera_i2c_read(i2c_adap, 1, 0x8584, &hdmi_check_value[20]); // DE_POS_V10
++	    camera_i2c_read(i2c_adap, 1, 0x8585, &hdmi_check_value[21]); // DE_POS_V11
++	    camera_i2c_read(i2c_adap, 1, 0x8586, &hdmi_check_value[22]); // DE_POS_V20
++	    camera_i2c_read(i2c_adap, 1, 0x8587, &hdmi_check_value[23]); // DE_POS_V21
++	    camera_i2c_read(i2c_adap, 1, 0x8588, &hdmi_check_value[24]); // DE_WIDTH_V0
++	    camera_i2c_read(i2c_adap, 1, 0x8589, &hdmi_check_value[25]); // DE_WIDTH_V1
++        //printk("Checking hdmi signal========\n");
++
++        //1080P
++        if (hdmi_check_value[17] == 0x07 && hdmi_check_value[16] == 0x80 && \
++                hdmi_check_value[25] == 0x04 && hdmi_check_value[24] == 0x38) {
++            //printk("Get hdmi signal 1080P========\n");
++            if (1920 != module_win_list[0]->width && 1080 != module_win_list[0]->height) {
++                pr_info("Change regs to 1080P========\n");
++	            camera_write_array(i2c_adap, module_1080p_regs);
++                module_win_list[0] = &module_win_1080p;
++            }
++            continue;
++        }
++        //720P
++        if (hdmi_check_value[17] == 0x05 && hdmi_check_value[16] == 0x00 && \
++                hdmi_check_value[25] == 0x02 && hdmi_check_value[24] == 0xD0) {
++            //printk("Get hdmi signal 720P========\n");
++            if (1280 != module_win_list[0]->width && 720 != module_win_list[0]->height) {
++                pr_info("Change regs to 720P========\n");
++	            camera_write_array(i2c_adap, module_720p_regs);
++                module_win_list[0] = &module_win_720p;
++            }
++            continue;
++        }
++        msleep(100);
++    } while (!kthread_should_stop());
++
++    return 0;
++}
++
++void sensor_power_on(bool rear, struct sensor_pwd_info *spinfo, bool hardware)
++{
++	if (hardware) {
++		if (rear) {
++			set_gpio_level(&spinfo->gpio_rear, GPIO_LOW);
++			set_gpio_level(&spinfo->gpio_front, GPIO_LOW);
++			mdelay(50);
++			set_gpio_level(&spinfo->gpio_rear, GPIO_HIGH);
++			mdelay(50);
++			set_gpio_level(&spinfo->gpio_front, GPIO_HIGH);
++		} else {
++			printk("Cold power on tc358749 as rear camera.\n");
++		}
++	} else {
++		if (rear) {
++			//set_gpio_level(&spinfo->gpio_rear, GPIO_LOW);
++			//set_gpio_level(&spinfo->gpio_front, GPIO_LOW);
++			//mdelay(50);
++			set_gpio_level(&spinfo->gpio_rear, GPIO_HIGH);
++			set_gpio_level(&spinfo->gpio_front, GPIO_HIGH);
++		} else {
++			printk("Soft power on tc358749 as rear camera.\n");
++		}
++	}
++
++}
++
++void sensor_power_off(bool rear, struct sensor_pwd_info *spinfo, bool hardware)
++{
++	//if (hardware) {
++	//	if (rear) {
++	//		set_gpio_level(&spinfo->gpio_rear_reset, GPIO_LOW);
++	//		mdelay(50);
++	//		set_gpio_level(&spinfo->gpio_front, GPIO_LOW);
++	//		set_gpio_level(&spinfo->gpio_rear, GPIO_LOW);
++	//	} else {
++	//		DBG_INFO("Cold power off tc358749 as rear camera.\n");
++	//	}
++	//} else {
++	//	if (rear) {
++	//		set_gpio_level(&spinfo->gpio_rear, GPIO_LOW);
++	//		set_gpio_level(&spinfo->gpio_front, GPIO_LOW);
++    //    } else
++	//		DBG_INFO("Soft power off tc358749 as rear camera.\n");
++	//}
++
++}
++
++static int camera_i2c_read(struct i2c_adapter *i2c_adap,
++			   unsigned int data_width, unsigned int reg,
++			   unsigned int *dest)
++{
++	unsigned char regs_array[4] = { 0, 0, 0, 0 };
++	unsigned char data_array[4] = { 0, 0, 0, 0 };
++	struct i2c_msg msg;
++	int ret = 0;
++
++	if (I2C_REGS_WIDTH == 1)
++		regs_array[0] = reg & 0xff;
++	if (I2C_REGS_WIDTH == 2) {
++		regs_array[0] = (reg >> 8) & 0xff;
++		regs_array[1] = reg & 0xff;
++	}
++	msg.addr = MODULE_I2C_REAL_ADDRESS;
++	msg.flags = 0;
++	msg.len = I2C_REGS_WIDTH;
++	msg.buf = regs_array;
++	ret = i2c_transfer(i2c_adap, &msg, 1);
++	if (ret < 0) {
++		pr_info("write register %s error %d", CAMERA_MODULE_NAME, ret);
++		return ret;
++	}
++
++	msg.flags = I2C_M_RD;
++	msg.len = data_width;
++	msg.buf = data_array;
++	ret = i2c_transfer(i2c_adap, &msg, 1);
++	if (ret >= 0) {
++		ret = 0;
++		if (data_width == 1)
++			*dest = data_array[0];
++		if (data_width == 2)
++			*dest = data_array[1] << 8 | data_array[0];
++		if (data_width == 4)
++			*dest = data_array[3] << 24 | data_array[2] << 16 | data_array[1] << 8 | data_array[0];
++	} else
++		pr_info("read register %s error %d", CAMERA_MODULE_NAME, ret);
++
++	return ret;
++}
++
++static int camera_i2c_write(struct i2c_adapter *i2c_adap,
++			    unsigned int data_width, unsigned int reg,
++			    unsigned int data)
++{
++	unsigned char regs_array[4] = { 0, 0, 0, 0 };
++	unsigned char data_array[4] = { 0, 0, 0, 0 };
++	unsigned char tran_array[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
++	struct i2c_msg msg;
++	int ret, i;
++
++	if (I2C_REGS_WIDTH == 1)
++		regs_array[0] = reg & 0xff;
++	if (I2C_REGS_WIDTH == 2) {
++		regs_array[0] = (reg >> 8) & 0xff;
++		regs_array[1] = reg & 0xff;
++	}
++	if (data_width == 1)
++		data_array[0] = data & 0xff;
++	if (data_width == 2) {
++		data_array[0] = data & 0xff;
++		data_array[1] = (data >> 8) & 0xff;
++	}
++	if (data_width == 4) {
++		data_array[0] = data & 0xff;
++		data_array[1] = (data >> 8) & 0xff;
++		data_array[2] = (data >> 16) & 0xff;
++		data_array[3] = (data >> 24) & 0xff;
++	}
++	for (i = 0; i < I2C_REGS_WIDTH; i++)
++		tran_array[i] = regs_array[i];
++
++	for (i = I2C_REGS_WIDTH; i < (I2C_REGS_WIDTH + data_width); i++)
++		tran_array[i] = data_array[i - I2C_REGS_WIDTH];
++
++	msg.addr = MODULE_I2C_REAL_ADDRESS;
++	msg.flags = 0;
++	msg.len = I2C_REGS_WIDTH + data_width;
++	msg.buf = tran_array;
++	ret = i2c_transfer(i2c_adap, &msg, 1);
++	if (ret > 0)
++		ret = 0;
++	else if (ret < 0)
++		pr_info("write register %s error %d", CAMERA_MODULE_NAME, ret);
++
++	return ret;
++}
++
++static int camera_write_array(struct i2c_adapter *i2c_adap,
++			      const struct regval_list *vals)
++{
++	while (vals->reg_num != 0xff) {
++		int ret = camera_i2c_write(i2c_adap,
++					   vals->data_width,
++					   vals->reg_num,
++					   vals->value);
++		if (ret < 0) {
++			pr_info("[camera] i2c write error!,i2c address is %x\n",
++				MODULE_I2C_REAL_ADDRESS);
++			return ret;
++		}
++		vals++;
++	}
++	return 0;
++}
++
++static int module_verify_pid(struct i2c_adapter *i2c_adap,
++			     struct camera_module_priv *priv)
++{
++	unsigned int pidh = 0;
++	int ret;
++
++	/*
++	 * check and show product ID and manufacturer ID
++	 */
++	ret = camera_i2c_read(i2c_adap, 2, PIDH, &pidh);
++
++	switch (pidh) {
++	case CAMERA_MODULE_PID:
++		pr_info("[%s] Product ID verified %x\n",
++			CAMERA_MODULE_NAME, pidh);
++        verified = true;
++		break;
++
++	default:
++		pr_info("[%s] Product ID error %x\n",
++			CAMERA_MODULE_NAME, pidh);
++        verified = false;
++		return -ENODEV;
++	}
++	return ret;
++}
++
++static void update_after_init(struct i2c_adapter *i2c_adap)
++{
++    if (verified)
++    {
++        tsk = kthread_run(check_hdmi, i2c_adap, "check_hdmi_thread");
++        if (IS_ERR(tsk)) {
++            pr_info("create check_hdmi_thread failed!\n");
++        } else {
++            pr_info("create check_hdmi_thread succeed!\n");
++        }
++    }       
++}
++
++static int module_set_mbusformat(struct i2c_client *client,
++				 const struct module_color_format *cfmt)
++{
++	return 0;
++}
++
++static int module_s_mirror_flip(struct v4l2_subdev *sd, struct v4l2_ctrl *ctrl)
++{
++	return 0;
++}
++
++static int module_soft_reset(struct i2c_client *client)
++{
++	//struct i2c_adapter *i2c_adap = client->adapter;
++	//int ret = 0;
++
++	//ret |= camera_i2c_write(i2c_adap, 1, 0x0103, 0x01);
++	//mdelay(10);
++	//ret |= camera_i2c_write(i2c_adap, 1, 0x0103, 0x00);
++	//mdelay(10);
++
++	return 0;
++}
++
++static int module_set_stream(struct i2c_client *client, int enable)
++{
++	return 0;
++}
++
++static int module_set_auto_white_balance(struct v4l2_subdev *sd,
++					 struct v4l2_ctrl *ctrl)
++{
++	return 0;
++}
++
++static int module_set_white_balance_temperature(struct v4l2_subdev *sd,
++						struct v4l2_ctrl *ctrl)
++{
++	return 0;
++}
++
++static int module_set_exposure_auto(struct v4l2_subdev *sd,
++				    struct v4l2_ctrl *ctrl)
++{
++	return 0;
++}
++
